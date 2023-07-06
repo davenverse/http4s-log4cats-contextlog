@@ -145,7 +145,9 @@ object ServerMiddleware {
     def httpApp(app: HttpApp[F]): HttpApp[F] =
       if (requestLogBody || responseLogBody) httpAppWithBody[F](logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, requestLogBody, requestBodyMaxSize, respHeaders, responseAdditionalContext, responseLogBody, responseBodyMaxSize, logLevel, logMessage)(app)
       else httpAppNoBody[F](logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, respHeaders, responseAdditionalContext, logLevel, logMessage)(app)
-    def httpRoutes(routes: HttpRoutes[F]): HttpRoutes[F] = httpRoutesNoBody(logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, respHeaders, responseAdditionalContext, logLevel, logMessage)(routes)
+    def httpRoutes(routes: HttpRoutes[F]): HttpRoutes[F] =
+      if (requestLogBody || responseLogBody) httpRoutesWithBody[F](logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, requestLogBody, requestBodyMaxSize, respHeaders, responseAdditionalContext, responseLogBody, responseBodyMaxSize, logLevel, logMessage)(routes)
+      else httpRoutesNoBody(logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, respHeaders, responseAdditionalContext, logLevel, logMessage)(routes)
 
   }
 
