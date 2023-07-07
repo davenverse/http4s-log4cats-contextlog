@@ -38,7 +38,7 @@ object ServerMiddleware {
     def responseAdditionalContext(prelude: ResponsePrelude) = Map.empty[String, String]
     val responseLogBody = false
     val responseBodyMaxSize = 65535
-    def logLevel(prelude: RequestPrelude, outcome: Outcome[Option, Throwable, ResponsePrelude]): LogLevel = LogLevel.Info
+    def logLevel(prelude: RequestPrelude, outcome: Outcome[Option, Throwable, ResponsePrelude]): Option[LogLevel] = LogLevel.Info.some
     def logMessage(prelude: RequestPrelude, outcome: Outcome[Option, Throwable, ResponsePrelude], now: FiniteDuration): String = s"Http Server - ${prelude.method}"
 
 
@@ -84,7 +84,7 @@ object ServerMiddleware {
     responseLogBody: Boolean,
     responseBodyMaxSize: Long,
 
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   ){ self =>
 
@@ -101,7 +101,7 @@ object ServerMiddleware {
       responseAdditionalContext: ResponsePrelude => Map[String, String] = self.responseAdditionalContext,
       responseLogBody: Boolean = self.responseLogBody,
       responseBodyMaxSize: Long = self.responseBodyMaxSize,
-      logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel = self.logLevel,
+      logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel] = self.logLevel,
       logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String = self.logMessage,
     ) = new ServerMiddlewareBuilder[F](
       logger,
@@ -142,7 +142,7 @@ object ServerMiddleware {
     def withResponseBodyMaxSize(l: Long) =
       copy(responseBodyMaxSize = l)
 
-    def withLogLevel(logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel) =
+    def withLogLevel(logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel]) =
       copy(logLevel = logLevel)
     def withLogMessage(logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String) =
       copy(logMessage = logMessage)
@@ -178,7 +178,7 @@ object ServerMiddleware {
     responseLogBody: Boolean,
     responseBodyMaxSize: Long,
 
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   )(routes: HttpApp[F]): HttpApp[F] = Kleisli{(req: Request[F]) =>
     willLog(req.requestPrelude).flatMap{ enabled =>
@@ -275,7 +275,7 @@ object ServerMiddleware {
     responseLogBody: Boolean,
     responseBodyMaxSize: Long,
 
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   )(routes: HttpRoutes[F]): HttpRoutes[F] = Kleisli{(req: Request[F]) =>
     OptionT.liftF(willLog(req.requestPrelude)).flatMap{ enabled =>
@@ -393,7 +393,7 @@ object ServerMiddleware {
     respHeaders: Set[CIString],
     responseAdditionalContext: ResponsePrelude => Map[String, String],
 
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   )(routes: HttpApp[F]): HttpApp[F] = Kleisli{(req: Request[F]) =>
     willLog(req.requestPrelude).flatMap{ enabled =>
@@ -451,7 +451,7 @@ object ServerMiddleware {
     respHeaders: Set[CIString],
     responseAdditionalContext: ResponsePrelude => Map[String, String],
 
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   )(routes: HttpRoutes[F]): HttpRoutes[F] = Kleisli{(req: Request[F]) =>
     OptionT.liftF(willLog(req.requestPrelude)).flatMap{ enabled =>
@@ -511,38 +511,37 @@ object ServerMiddleware {
     }
   }
 
-  private def logLevelAware[F[_]](
+  private def logLevelAware[F[_]: Applicative](
     logger: StructuredLogger[F],
-
     ctx: Map[String, String],
     prelude: RequestPrelude,
     outcome: Outcome[Option, Throwable, ResponsePrelude],
     now: FiniteDuration,
-    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel,
+    logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => Option[LogLevel],
     logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String,
   ): F[Unit] = {
     (logLevel(prelude, outcome), outcome) match {
-      case (LogLevel.Trace, Outcome.Errored(e)) =>
+      case (None, _) => Applicative[F].unit
+      case (Some(LogLevel.Trace), Outcome.Errored(e)) =>
         logger.trace(ctx, e)(logMessage(prelude, outcome, now))
-      case (LogLevel.Trace, _) =>
+      case (Some(LogLevel.Trace), _) =>
         logger.trace(ctx)(logMessage(prelude, outcome, now))
-      case (LogLevel.Debug, Outcome.Errored(e)) =>
+      case (Some(LogLevel.Debug), Outcome.Errored(e)) =>
         logger.debug(ctx, e)(logMessage(prelude, outcome, now))
-      case (LogLevel.Debug, _) =>
+      case (Some(LogLevel.Debug), _) =>
         logger.debug(ctx)(logMessage(prelude, outcome, now))
-      case (LogLevel.Info, Outcome.Errored(e)) =>
+      case (Some(LogLevel.Info), Outcome.Errored(e)) =>
         logger.info(ctx, e)(logMessage(prelude, outcome, now))
-      case (LogLevel.Info, _) =>
+      case (Some(LogLevel.Info), _) =>
         logger.info(ctx)(logMessage(prelude, outcome, now))
-      case (LogLevel.Warn, Outcome.Errored(e)) =>
+      case (Some(LogLevel.Warn), Outcome.Errored(e)) =>
         logger.warn(ctx, e)(logMessage(prelude, outcome, now))
-      case (LogLevel.Warn, _) =>
+      case (Some(LogLevel.Warn), _) =>
         logger.warn(ctx)(logMessage(prelude, outcome, now))
-      case (LogLevel.Error, Outcome.Errored(e)) =>
+      case (Some(LogLevel.Error), Outcome.Errored(e)) =>
         logger.error(ctx, e)(logMessage(prelude, outcome, now))
-      case (LogLevel.Error, _) =>
+      case (Some(LogLevel.Error), _) =>
         logger.error(ctx)(logMessage(prelude, outcome, now))
-
     }
   }
 
