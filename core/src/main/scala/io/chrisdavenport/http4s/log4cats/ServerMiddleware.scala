@@ -132,6 +132,16 @@ object ServerMiddleware {
     def withAdditionalResponseContext(responseAdditionalContext: ResponsePrelude => Map[String, String]) =
       copy(responseAdditionalContext = responseAdditionalContext)
 
+    def withLogRequestBody(boolean: Boolean) =
+      copy(requestLogBody = boolean)
+    def withLogResponseBody(boolean: Boolean) =
+      copy(responseLogBody = boolean)
+
+    def withRequestBodyMaxSize(l: Long) =
+      copy(requestBodyMaxSize = l)
+    def withResponseBodyMaxSize(l: Long) =
+      copy(responseBodyMaxSize = l)
+
     def withLogLevel(logLevel: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude]) => LogLevel) =
       copy(logLevel = logLevel)
     def withLogMessage(logMessage: (RequestPrelude, Outcome[Option, Throwable, ResponsePrelude], FiniteDuration) => String) =
@@ -210,16 +220,15 @@ object ServerMiddleware {
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
-                        } yield {
-                          val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
-                          val requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
-                          val responseCtx = response(resp, respHeaders, responseAdditionalContext)
-                          val responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
-                          val outcome = Outcome.succeeded[Option, Throwable, ResponsePrelude](resp.responsePrelude.some)
-                          val outcomeCtx = outcomeContext(outcome)
-                          val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                          logLevelAware(logger, finalCtx, req.requestPrelude, outcome, end, logLevel, logMessage)
-                        }
+                          duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                          requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
+                          responseCtx = response(resp, respHeaders, responseAdditionalContext)
+                          responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
+                          outcome = Outcome.succeeded[Option, Throwable, ResponsePrelude](resp.responsePrelude.some)
+                          outcomeCtx = outcomeContext(outcome)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
+                          _ <- logLevelAware(logger, finalCtx, req.requestPrelude, outcome, end, logLevel, logMessage)
+                        } yield ()
                       }
                   )
               }
@@ -308,16 +317,15 @@ object ServerMiddleware {
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
-                        } yield {
-                          val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
-                          val requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
-                          val responseCtx = response(resp, respHeaders, responseAdditionalContext)
-                          val responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
-                          val outcome = Outcome.succeeded[Option, Throwable, ResponsePrelude](resp.responsePrelude.some)
-                          val outcomeCtx = outcomeContext(outcome)
-                          val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                          logLevelAware(logger, finalCtx, req.requestPrelude, outcome, end, logLevel, logMessage)
-                        }
+                          duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                          requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
+                          responseCtx = response(resp, respHeaders, responseAdditionalContext)
+                          responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
+                          outcome = Outcome.succeeded[Option, Throwable, ResponsePrelude](resp.responsePrelude.some)
+                          outcomeCtx = outcomeContext(outcome)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
+                          _ <- logLevelAware(logger, finalCtx, req.requestPrelude, outcome, end, logLevel, logMessage)
+                        } yield ()
                       }
                   )
               }
