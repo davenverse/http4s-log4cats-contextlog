@@ -410,15 +410,15 @@ object ClientMiddleware {
     def log(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
       val statusS = outcome match {
         case Outcome.Succeeded(Some(resp)) => resp.status.code.toString()
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
+        case Outcome.Succeeded(None) => DASH.toString()
+        case Outcome.Errored(e) => DASH.toString()
+        case Outcome.Canceled() => DASH.toString()
       }
       val respLengthS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.contentLength.fold(DASH)(l => l.toString())
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
+        case Outcome.Succeeded(Some(resp)) => resp.contentLength.fold(DASH.toString())(l => l.toString())
+        case Outcome.Succeeded(None) => DASH.toString()
+        case Outcome.Errored(e) => DASH.toString()
+        case Outcome.Canceled() => DASH.toString()
       }
 
       val sb = new StringBuilder()
