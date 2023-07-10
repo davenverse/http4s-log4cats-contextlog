@@ -23,6 +23,7 @@ val catsV = "2.9.0"
 val catsEffectV = "3.5.0"
 val fs2V = "3.7.0"
 val http4sV = "0.23.18"
+val log4catsV = "2.6.0"
 
 
 val munitCatsEffectV = "2.0.0-M3"
@@ -45,12 +46,12 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       "co.fs2"                      %%% "fs2-core"                   % fs2V,
       "co.fs2"                      %%% "fs2-io"                     % fs2V,
 
-      "org.http4s"                  %%% "http4s-client"               % http4sV,
-      "org.http4s"                  %%% "http4s-server"               % http4sV,
-      "org.typelevel"               %%% "log4cats-core"             % "2.6.0",
+      "org.http4s"                  %%% "http4s-client"              % http4sV,
+      "org.http4s"                  %%% "http4s-server"              % http4sV,
+      "org.typelevel"               %%% "log4cats-core"              % log4catsV,
 
-      "org.typelevel"               %%% "munit-cats-effect"        % munitCatsEffectV         % Test,
-      "org.typelevel"               %%% "log4cats-testing"           % "2.6.0" % Test,
+      "org.typelevel"               %%% "munit-cats-effect"          % munitCatsEffectV % Test,
+      "org.typelevel"               %%% "log4cats-testing"           % log4catsV % Test,
 
     )
   ).jsSettings(
