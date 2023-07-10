@@ -12,8 +12,12 @@ import org.typelevel.log4cats.testing.StructuredTestingLogger.INFO
 import org.typelevel.log4cats.testing.StructuredTestingLogger.WARN
 import org.typelevel.log4cats.testing.StructuredTestingLogger.ERROR
 import org.http4s.client.Client
+import fs2.Pure
+import scala.concurrent.duration.FiniteDuration
 
 class MainSpec extends CatsEffectSuite {
+
+  def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = s"Http Server - ${prelude.method}"
 
   test("Successfully Create a Server Context Log") {
     val logger = StructuredTestingLogger.impl[IO]()
@@ -26,6 +30,7 @@ class MainSpec extends CatsEffectSuite {
       .withLogRequestBody(false)
       .withLogResponseBody(false)
       .withRemovedContextKeys(Set("http.duration_ms"))
+      .withLogMessage(logMessage)
 
     val finalApp = builder.httpApp(server)
 
@@ -64,6 +69,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ServerMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
+      .withLogMessage(logMessage)
       .withRemovedContextKeys(Set("http.duration_ms"))
 
     val finalApp = builder.httpApp(server)
@@ -160,6 +166,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ClientMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
+      .withLogMessage(logMessage)
       .withRemovedContextKeys(Set("http.duration_ms"))
 
     val finalApp = builder.client(client)

@@ -19,7 +19,8 @@ import org.typelevel.vault.Key
 import scala.concurrent.duration.FiniteDuration
 import org.typelevel.log4cats.LoggerFactory
 import fs2.{Stream, Pure}
-import SharedStructureLogging._
+import SharedStructuredLogging._
+import java.time.ZoneId
 
 object ServerMiddleware {
   object Defaults {
@@ -37,8 +38,8 @@ object ServerMiddleware {
     val responseBodyMaxSize = 65535
     val removedContextKeys = Set.empty[String]
     def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = LogLevel.Info.some
-    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = s"Http Server - ${prelude.method}"
-
+    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      CommonLog.logMessage(ZoneId.systemDefault())(prelude, outcome, now)
   }
 
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: ServerMiddlewareBuilder[F] =
@@ -577,4 +578,6 @@ object ServerMiddleware {
 
     builder.result()
   }
+
+
 }

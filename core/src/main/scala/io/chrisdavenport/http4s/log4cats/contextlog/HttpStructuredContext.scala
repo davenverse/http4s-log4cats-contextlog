@@ -8,7 +8,7 @@ import cats.syntax.all._
 import com.comcast.ip4s._
 
 
-object HttpStructuredContext {
+private[contextlog] object HttpStructuredContext {
 
   object Common {
     def method(m: Method): (String, String) = ("http.method", m.name)

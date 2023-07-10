@@ -19,9 +19,9 @@ import scala.concurrent.duration.FiniteDuration
 import org.typelevel.log4cats.LoggerFactory
 import fs2.{Stream, Pure}
 import org.http4s.client.middleware.Retry
-import SharedStructureLogging._
+import SharedStructuredLogging._
 import org.http4s.client.Client
-
+import java.time.ZoneId
 
 object ClientMiddleware {
 
@@ -40,8 +40,8 @@ object ClientMiddleware {
     val responseBodyMaxSize = 65535
     val removedContextKeys = Set.empty[String]
     def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = LogLevel.Info.some
-    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = s"Http Server - ${prelude.method}"
-
+    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      CommonLog.logMessage(ZoneId.systemDefault())(prelude, outcome, now)
   }
 
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: ClientMiddlewareBuilder[F] =
