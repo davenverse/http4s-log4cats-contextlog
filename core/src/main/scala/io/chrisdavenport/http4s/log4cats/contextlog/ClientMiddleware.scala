@@ -41,7 +41,7 @@ object ClientMiddleware {
     val removedContextKeys = Set.empty[String]
     def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = LogLevel.Info.some
     def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
-      CommonLog.logMessage(ZoneId.systemDefault())(prelude, outcome, now)
+      DefaultLog.log(prelude, outcome, now)
   }
 
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: ClientMiddlewareBuilder[F] =
@@ -401,6 +401,45 @@ object ClientMiddleware {
     // AttemptCountKey is 1,2,3,4 for the initial request,
     // since we want to do retries. We substract by 1 to get 0,1,2,3.
     vault.lookup(Retry.AttemptCountKey).map(i => i - 1)
+  }
+
+  object DefaultLog {
+    private val SPACE = ' '
+    private val DASH = '-'
+    private val DQUOTE = '"'
+    def log(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
+      val statusS = outcome match {
+        case Outcome.Succeeded(Some(resp)) => resp.status.code.toString()
+        case Outcome.Succeeded(None) => DASH
+        case Outcome.Errored(e) => DASH
+        case Outcome.Canceled() => DASH
+      }
+      val respLengthS = outcome match {
+        case Outcome.Succeeded(Some(resp)) => resp.contentLength.fold(DASH)(l => l.toString())
+        case Outcome.Succeeded(None) => DASH
+        case Outcome.Errored(e) => DASH
+        case Outcome.Canceled() => DASH
+      }
+
+      val sb = new StringBuilder()
+      sb.append("HttpClient")
+      sb.append(SPACE)
+
+      sb.append(DQUOTE)
+      sb.append(request.method.name)
+      sb.append(SPACE)
+      sb.append(request.uri.renderString)
+      sb.append(SPACE)
+      sb.append(request.httpVersion.renderString)
+      sb.append(DQUOTE)
+      sb.append(SPACE)
+
+      sb.append(statusS)
+      sb.append(SPACE)
+      sb.append(respLengthS)
+
+      sb.toString()
+    }
   }
 
 }

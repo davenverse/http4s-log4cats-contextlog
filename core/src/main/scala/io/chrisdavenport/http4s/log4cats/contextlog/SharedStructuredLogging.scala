@@ -10,10 +10,9 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.extras.LogLevel
 import scala.concurrent.duration._
 import org.http4s.Charset
-import java.time.{Instant, ZoneId}
-import java.time.format.DateTimeFormatter
 
-object SharedStructuredLogging {
+
+private[contextlog] object SharedStructuredLogging {
   private[contextlog] def pureRequest[F[_]](req: Request[F]): Request[Pure] = Request(req.method, req.uri, req.httpVersion, req.headers, Stream.empty, req.attributes)
   private[contextlog] def pureResponse[F[_]](resp: Response[F]): Response[Pure] = Response(resp.status, resp.httpVersion, resp.headers, Stream.empty, resp.attributes)
 
@@ -74,68 +73,6 @@ object SharedStructuredLogging {
 
   }
 
-  object CommonLog {
-    private val LSB = "["
-    private val RSB = "]"
-    private val DASH = "-"
-    private val SPACE = " "
-    private val DQUOTE = "\""
 
-    private val dateTimeFormat = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z")
-
-    def logMessage(zone: ZoneId)(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
-
-      val dateString = Instant.ofEpochMilli(now.toMillis).atZone(zone).format(dateTimeFormat)
-
-      val statusS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.status.code.toString()
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
-      }
-      val respLengthS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.contentLength
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
-      }
-
-      val sb = new StringBuilder()
-      sb.append(request.remote.fold(DASH)(sa => sa.host.toString())) // Remote
-      sb.append(SPACE)
-
-      sb.append(DASH) // Ident Protocol Not Implemented
-      sb.append(SPACE)
-
-      sb.append(request.remoteUser.fold(DASH)(identity)) // User
-      sb.append(SPACE)
-
-      sb.append(LSB)
-      sb.append(dateString)
-      sb.append(RSB)
-      sb.append(SPACE)
-      
-      sb.append(DQUOTE)
-
-      sb.append(request.method.renderString)
-      sb.append(SPACE)
-      sb.append(request.uri.toOriginForm.renderString)
-      sb.append(SPACE)
-      sb.append(request.httpVersion.renderString)
-
-
-      sb.append(DQUOTE)
-      sb.append(SPACE)
-
-
-      sb.append(statusS)
-      sb.append(SPACE)
-
-      sb.append(respLengthS)
-
-      sb.toString()
-    }
-
-  }
 
 }

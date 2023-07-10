@@ -4,6 +4,7 @@ import munit.CatsEffectSuite
 import cats.effect._
 import cats.syntax.all._
 import org.http4s._
+import org.http4s.implicits._
 import org.typelevel.log4cats.testing.StructuredTestingLogger
 import org.typelevel.log4cats.extras._
 import org.typelevel.log4cats.testing.StructuredTestingLogger.TRACE
@@ -166,11 +167,11 @@ class MainSpec extends CatsEffectSuite {
     val builder = ClientMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
-      .withLogMessage(logMessage)
+      // .withLogMessage(logMessage)
       .withRemovedContextKeys(Set("http.duration_ms"))
 
     val finalApp = builder.client(client)
-    val request = Request[IO](Method.GET).withEntity("Hello from Request!")
+    val request = Request[IO](Method.GET, uri"http://test.http4s.org/").withEntity("Hello from Request!")
 
     (finalApp.run(request).use(_.body.compile.drain) *> logger.logged).map{
       logged =>
@@ -178,9 +179,10 @@ class MainSpec extends CatsEffectSuite {
         logged,
         Vector(
           INFO(
-            "Http Server - GET",
+            "HttpClient \"GET http://test.http4s.org/ HTTP/1.1\" 200 20",
             None,
             Map(
+              "http.scheme" -> "http",
               "http.response.header.content-length" -> "20",
               "http.target" -> "/",
               "exit.case" -> "succeeded",
@@ -193,9 +195,9 @@ class MainSpec extends CatsEffectSuite {
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response_content_length" -> "20",
-              "http.host" -> "localhost",
+              "http.host" -> "test.http4s.org",
               "http.flavor" -> "1.1",
-              "http.url" -> "/"
+              "http.url" -> "http://test.http4s.org/"
             )
           )
         ))
