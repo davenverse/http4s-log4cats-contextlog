@@ -1,4 +1,4 @@
-package io.chrisdavenport.http4s.log4cats
+package io.chrisdavenport.http4s.log4cats.contextlog
 
 
 import org.http4s._

@@ -29,14 +29,14 @@ val munitCatsEffectV = "2.0.0-M3"
 
 
 // Projects
-lazy val `http4s-log4cats` = tlCrossRootProject
+lazy val `http4s-log4cats-contextlog` = tlCrossRootProject
   .aggregate(core)
 
-lazy val core = crossProject(JVMPlatform, JSPlatform)
+lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("core"))
   .settings(
-    name := "http4s-log4cats",
+    name := "http4s-log4cats-contextlog",
 
     libraryDependencies ++= Seq(
       "org.typelevel"               %%% "cats-core"                  % catsV,
