@@ -43,11 +43,11 @@ object ServerMiddleware {
       CommonLog.logMessage(ZoneId.systemDefault())(prelude, outcome, now)
   }
 
-  def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: ServerMiddlewareBuilder[F] =
+  def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: Builder[F] =
     fromLogger(LoggerFactory[F].getLogger)
 
-  def fromLogger[F[_]: Concurrent: Clock](logger: SelfAwareStructuredLogger[F]): ServerMiddlewareBuilder[F] =
-    new ServerMiddlewareBuilder[F](
+  def fromLogger[F[_]: Concurrent: Clock](logger: SelfAwareStructuredLogger[F]): Builder[F] =
+    new Builder[F](
       logger,
       Defaults.willLog[F],
       Defaults.routeClassifier(_),
@@ -65,7 +65,7 @@ object ServerMiddleware {
       Defaults.logMessage(_,_,_)
     )
 
-  final class ServerMiddlewareBuilder[F[_]: Concurrent: Clock] private[ServerMiddleware](
+  final class Builder[F[_]: Concurrent: Clock] private[ServerMiddleware](
     logger: SelfAwareStructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
@@ -105,7 +105,7 @@ object ServerMiddleware {
       removedContextKeys: Set[String] = self.removedContextKeys,
       logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel] = self.logLevel,
       logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String = self.logMessage,
-    ) = new ServerMiddlewareBuilder[F](
+    ) = new Builder[F](
       logger,
       willLog,
       routeClassifier,
