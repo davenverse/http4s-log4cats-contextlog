@@ -218,7 +218,8 @@ object ServerMiddleware {
                           end <- Clock[F].realTime
                           reqBodyFinal <- reqBody.get
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
-                          reqContext = request(reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk))), reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+                          bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
+                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
                           duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
@@ -228,7 +229,7 @@ object ServerMiddleware {
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = outcomeContext(outcome)
                           finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                          _ <- logLevelAware(logger, finalCtx, pureReq, outcome, end, logLevel, logMessage)
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, end, logLevel, logMessage)
                         } yield ()
                       }
                   )
@@ -319,7 +320,8 @@ object ServerMiddleware {
                             end <- Clock[F].realTime
                             reqBodyFinal <- reqBody.get
                             reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
-                            reqContext = request(reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk))), reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+                            newPureReq = reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
+                            reqContext = request(newPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
                             respBodyFinal <- respBody.get
                             respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
                             duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
@@ -329,7 +331,7 @@ object ServerMiddleware {
                             outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                             outcomeCtx = outcomeContext(outcome)
                             finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                            _ <- logLevelAware(logger, finalCtx, pureReq, outcome, end, logLevel, logMessage)
+                            _ <- logLevelAware(logger, finalCtx, newPureReq, outcome, end, logLevel, logMessage)
                           } yield ()
                         }
                     ).some.pure[F]
