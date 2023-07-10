@@ -11,10 +11,11 @@ import org.typelevel.log4cats.testing.StructuredTestingLogger.DEBUG
 import org.typelevel.log4cats.testing.StructuredTestingLogger.INFO
 import org.typelevel.log4cats.testing.StructuredTestingLogger.WARN
 import org.typelevel.log4cats.testing.StructuredTestingLogger.ERROR
+import org.http4s.client.Client
 
 class MainSpec extends CatsEffectSuite {
 
-  test("Successfully Create a Context Log") {
+  test("Successfully Create a Server Context Log") {
     val logger = StructuredTestingLogger.impl[IO]()
 
     val server = HttpRoutes.of[IO]{
@@ -22,13 +23,16 @@ class MainSpec extends CatsEffectSuite {
     }.orNotFound
 
     val builder = ServerMiddleware.fromLogger(logger)
+      .withLogRequestBody(false)
+      .withLogResponseBody(false)
+      .withRemovedContextKeys(Set("http.duration_ms"))
 
     val finalApp = builder.httpApp(server)
 
     (finalApp.run(Request[IO](Method.GET)) *> logger.logged).map{
       logged =>
       assertEquals(
-        logged.map(removeDuration),
+        logged,
         Vector(
           INFO(
             "Http Server - GET",
@@ -50,7 +54,7 @@ class MainSpec extends CatsEffectSuite {
     }
   }
 
-  test("Successfully Create a Context Log with Body") {
+  test("Successfully Create a Server Context Log with Body") {
     val logger = StructuredTestingLogger.impl[IO]()
 
     val server = HttpRoutes.of[IO]{
@@ -60,6 +64,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ServerMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
+      .withRemovedContextKeys(Set("http.duration_ms"))
 
     val finalApp = builder.httpApp(server)
     val request = Request[IO](Method.GET).withEntity("Hello from Request!")
@@ -67,7 +72,7 @@ class MainSpec extends CatsEffectSuite {
     (finalApp.run(request).flatMap(_.body.compile.drain) *> logger.logged).map{
       logged =>
       assertEquals(
-        logged.map(removeDuration),
+        logged,
         Vector(
           INFO(
             "Http Server - GET",
@@ -104,6 +109,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ServerMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
+      .withRemovedContextKeys(Set("http.duration_ms"))
       .withLogMessage{
         case (req, Outcome.Succeeded(Some(resp)), _) => s"Req Body - ${req.body.through(fs2.text.utf8.decode).compile.string}\nResp Body - ${resp.body.through(fs2.text.utf8.decode).compile.string}"
         case (_, _, _) => "Whoops!"
@@ -115,7 +121,7 @@ class MainSpec extends CatsEffectSuite {
     (finalApp.run(request).flatMap(_.body.compile.drain) *> logger.logged).map{
       logged =>
       assertEquals(
-        logged.map(removeDuration),
+        logged,
         Vector(
           INFO(
             "Req Body - Hello from Request!\nResp Body - Hello from Response!",
@@ -142,13 +148,52 @@ class MainSpec extends CatsEffectSuite {
     }
   }
 
-  def removeDuration(lm: StructuredTestingLogger.LogMessage): StructuredTestingLogger.LogMessage = lm match {
-    case TRACE(message, throwOpt, ctx) => TRACE(message, throwOpt, ctx - "http.duration_ms")
-    case DEBUG(message, throwOpt, ctx) => DEBUG(message, throwOpt, ctx - "http.duration_ms")
-    case INFO(message, throwOpt, ctx) => INFO(message, throwOpt, ctx - "http.duration_ms")
-    case WARN(message, throwOpt, ctx) => WARN(message, throwOpt, ctx - "http.duration_ms")
-    case ERROR(message, throwOpt, ctx) => ERROR(message, throwOpt, ctx - "http.duration_ms")
+    test("Successfully Create a Client Context Log with Body") {
+    val logger = StructuredTestingLogger.impl[IO]()
+
+    val server = HttpRoutes.of[IO]{
+      case req => req.body.compile.drain >> Response[IO](Status.Ok).withEntity("Hello from Response!").pure[IO]
+    }.orNotFound
+
+    val client = Client.fromHttpApp(server)
+
+    val builder = ClientMiddleware.fromLogger(logger)
+      .withLogRequestBody(true)
+      .withLogResponseBody(true)
+      .withRemovedContextKeys(Set("http.duration_ms"))
+
+    val finalApp = builder.client(client)
+    val request = Request[IO](Method.GET).withEntity("Hello from Request!")
+
+    (finalApp.run(request).use(_.body.compile.drain) *> logger.logged).map{
+      logged =>
+      assertEquals(
+        logged,
+        Vector(
+          INFO(
+            "Http Server - GET",
+            None,
+            Map(
+              "http.response.header.content-length" -> "20",
+              "http.target" -> "/",
+              "exit.case" -> "succeeded",
+              "http.method" -> "GET",
+              "http.request_content_length" -> "19",
+              "http.status_code" -> "200",
+              "http.request.body" -> "Hello from Request!",
+              "http.response.body" -> "Hello from Response!",
+              "http.request.header.content-length" -> "19",
+              "http.request.header.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.header.content-type" -> "text/plain; charset=UTF-8",
+              "http.response_content_length" -> "20",
+              "http.host" -> "localhost",
+              "http.flavor" -> "1.1",
+              "http.url" -> "/"
+            )
+          )
+        ))
+    }
   }
-  
+
 
 }

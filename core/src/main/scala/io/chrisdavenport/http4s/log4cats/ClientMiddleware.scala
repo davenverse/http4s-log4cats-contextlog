@@ -329,7 +329,7 @@ object ClientMiddleware {
     }
   }
 
-    private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
+  private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
     val builder = MapBuilderImpl[String, String]()
     builder += HttpStructuredContext.Common.method(request.method)
     if (includeUrl(request)) {
@@ -344,7 +344,7 @@ object ClientMiddleware {
     request.uri.scheme.foreach( s =>
       builder += HttpStructuredContext.Common.scheme(s)
     )
-    request.headers.get[`User-Agent`].foreach( ua => 
+    request.headers.get[`User-Agent`].foreach( ua =>
       builder += HttpStructuredContext.Common.userAgent(ua)
     )
 
