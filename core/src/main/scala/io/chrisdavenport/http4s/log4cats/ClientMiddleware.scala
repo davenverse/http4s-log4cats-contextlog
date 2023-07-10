@@ -11,7 +11,6 @@ import cats.effect.syntax.all._
 import cats.data.{Kleisli, OptionT}
 import org.typelevel.log4cats.{StructuredLogger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.extras.LogLevel
-import scala.collection.immutable.MapBuilderImpl
 import org.http4s.client.RequestKey
 import cats.effect.kernel.Outcome.Canceled
 import cats.effect.kernel.Outcome.Errored
@@ -330,7 +329,7 @@ object ClientMiddleware {
   }
 
   private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
-    val builder = MapBuilderImpl[String, String]()
+    val builder = Map.newBuilder[String, String]
     builder += HttpStructuredContext.Common.method(request.method)
     if (includeUrl(request)) {
       builder += HttpStructuredContext.Common.url(request.uri)
@@ -382,7 +381,7 @@ object ClientMiddleware {
   }
 
   def response[F[_]](response: Response[Pure], headers: Set[CIString], responseAdditionalContext: Response[Pure] => Map[String, String]): Map[String, String] = {
-    val builder = MapBuilderImpl[String, String]()
+    val builder = Map.newBuilder[String, String]
 
     builder += HttpStructuredContext.Common.status(response.status)
     response.contentLength.foreach(l => 
