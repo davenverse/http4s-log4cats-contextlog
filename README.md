@@ -11,3 +11,8 @@ libraryDependencies ++= Seq(
   "io.chrisdavenport" %% "http4s-log4cats-contextlog" % "<version>"
 )
 ```
+
+
+## Intention of Upstreaming
+
+The goal of this library is to solidify the interface and contribute it to http4s. Any contributions should be made with an understanding that this code will eventually be PR'd to http4s, and altered there in accordance with the http4s license.
