@@ -7,6 +7,7 @@ import org.http4s.headers._
 import cats.syntax.all._
 import com.comcast.ip4s._
 import scala.concurrent.duration.FiniteDuration
+import cats.effect.Outcome
 
 
 object HttpStructuredContext {
@@ -28,10 +29,18 @@ object HttpStructuredContext {
     def peerIp(ip: IpAddress): (String, String) = ("net.peer.ip", ip.toString()) // TODO: Check that this is the right way
     def peerPort(port: Port): (String, String) = ("net.peer.port", port.value.show)
 
-    def logKind(logKind: String) = ("contextlog.kind", logKind)
+    def logKind(logKind: String) = ("http.kind", logKind)
     def accessTime(duration: FiniteDuration) = ("http.access_time", duration.toMillis.toString)
     def headersDuration(duration: FiniteDuration) = ("http.duration_ms", duration.toMillis.toString())
     def bodyDuration(duration: FiniteDuration) = ("http.duration_body_ms", duration.toMillis.toString())
+    def outcome[F[_], E, A](outcome: Outcome[F, E, A]): (String, String) = {
+      outcome match {
+        case Outcome.Canceled() => "http.exit_case" -> "canceled"
+        case Outcome.Errored(_) => "http.exit_case" -> "errored"
+        case Outcome.Succeeded(_) => "http.exit_case" -> "succeeded"
+      }
+    }
+
   }
 
   object Client {

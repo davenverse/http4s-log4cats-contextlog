@@ -16,14 +16,7 @@ private[contextlog] object SharedStructuredLogging {
   private[contextlog] def pureRequest[F[_]](req: Request[F]): Request[Pure] = Request(req.method, req.uri, req.httpVersion, req.headers, Stream.empty, req.attributes)
   private[contextlog] def pureResponse[F[_]](resp: Response[F]): Response[Pure] = Response(resp.status, resp.httpVersion, resp.headers, Stream.empty, resp.attributes)
 
-  private[contextlog] def outcomeContext[F[_], E, A](outcome: Outcome[F, E, A]): (String, String) = {
-    outcome match {
-      case Outcome.Canceled() => "exit.case" -> "canceled"
-      case Outcome.Errored(_) => "exit.case" -> "errored"
-      case Outcome.Succeeded(_) => "exit.case" -> "succeeded"
-    }
-  }
-
+  
   private[contextlog] def logLevelAware[F[_]: Applicative](
     logger: StructuredLogger[F],
     ctx: Map[String, String],
