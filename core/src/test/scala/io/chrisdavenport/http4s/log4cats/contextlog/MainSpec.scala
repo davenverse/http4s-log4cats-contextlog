@@ -53,7 +53,8 @@ class MainSpec extends CatsEffectSuite {
 
               "http.host" -> "localhost",
               "http.flavor" -> "1.1",
-              "http.url" -> "/"
+              "http.url" -> "/",
+              "contextlog.kind" -> "server",
             )
           )
         ))
@@ -71,7 +72,7 @@ class MainSpec extends CatsEffectSuite {
       .withLogRequestBody(true)
       .withLogResponseBody(true)
       .withLogMessage(logMessage)
-      .withRemovedContextKeys(Set("http.duration_ms"))
+      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms"))
 
     val finalApp = builder.httpApp(server)
     val request = Request[IO](Method.GET).withEntity("Hello from Request!")
@@ -93,6 +94,7 @@ class MainSpec extends CatsEffectSuite {
               "http.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
+              "contextlog.kind" -> "server",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
@@ -116,7 +118,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ServerMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
-      .withRemovedContextKeys(Set("http.duration_ms"))
+      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms"))
       .withLogMessage{
         case (req, Outcome.Succeeded(Some(resp)), _) => s"Req Body - ${req.body.through(fs2.text.utf8.decode).compile.string}\nResp Body - ${resp.body.through(fs2.text.utf8.decode).compile.string}"
         case (_, _, _) => "Whoops!"
@@ -142,6 +144,7 @@ class MainSpec extends CatsEffectSuite {
               "http.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
+              "contextlog.kind" -> "server",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
@@ -168,7 +171,7 @@ class MainSpec extends CatsEffectSuite {
       .withLogRequestBody(true)
       .withLogResponseBody(true)
       // .withLogMessage(logMessage)
-      .withRemovedContextKeys(Set("http.duration_ms"))
+      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms"))
 
     val finalApp = builder.client(client)
     val request = Request[IO](Method.GET, uri"http://test.http4s.org/").withEntity("Hello from Request!")
@@ -191,6 +194,7 @@ class MainSpec extends CatsEffectSuite {
               "http.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
+              "contextlog.kind" -> "client",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",

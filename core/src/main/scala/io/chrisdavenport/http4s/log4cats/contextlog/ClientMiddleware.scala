@@ -209,6 +209,8 @@ object ClientMiddleware {
                 resp <- client.run{
                   newReq
                 }
+                headersEnd <- Resource.eval(Clock[F].realTime)
+                headersDuration = HttpStructuredContext.Common.headersDuration(headersEnd.minus(start))
               } yield {
                   resp.withBodyStream(
                     resp.body.observe((s: fs2.Stream[F, Byte]) =>
@@ -222,21 +224,21 @@ object ClientMiddleware {
                       .onFinalizeWeak{
                         val pureResp = pureResponse(resp)
                         for {
-                          end <- Clock[F].realTime
+                          bodyEnd <- Clock[F].realTime
                           reqBodyFinal <- reqBody.get
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
                           reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
-                          duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                           requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                           responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders, responseAdditionalContext)
                           responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = outcomeContext(outcome)
-                          finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
                         } yield ()
                       }
                   )
@@ -245,7 +247,7 @@ object ClientMiddleware {
               .guaranteeCase{
                 case Outcome.Canceled() =>
                   Resource.eval(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -253,7 +255,7 @@ object ClientMiddleware {
                   })
                 case Outcome.Errored(e) =>
                   Resource.eval(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -295,7 +297,7 @@ object ClientMiddleware {
               .guaranteeCase{
                 case Outcome.Canceled() =>
                   Resource.eval(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -303,7 +305,7 @@ object ClientMiddleware {
                   })
                 case Outcome.Errored(e) =>
                   Resource.eval(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -313,7 +315,7 @@ object ClientMiddleware {
                   case resp =>
                     val pureResp = pureResponse(resp)
                     Resource.eval(Clock[F].realTime.flatMap{ end =>
-                      val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                       val responseCtx = response(pureResp, respHeaders, responseAdditionalContext)
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](pureResp.some)
                       val outcomeCtx = outcomeContext(outcome)
@@ -330,6 +332,7 @@ object ClientMiddleware {
 
   private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
     val builder = Map.newBuilder[String, String]
+    builder += HttpStructuredContext.Common.logKind("client")
     builder += HttpStructuredContext.Common.method(request.method)
     if (includeUrl(request)) {
       builder += HttpStructuredContext.Common.url(request.uri)

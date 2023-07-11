@@ -6,6 +6,7 @@ import org.typelevel.ci.CIString
 import org.http4s.headers._
 import cats.syntax.all._
 import com.comcast.ip4s._
+import scala.concurrent.duration.FiniteDuration
 
 
 object HttpStructuredContext {
@@ -26,6 +27,10 @@ object HttpStructuredContext {
     def retryCount(i: Int): (String, String)= ("http.retry_count", i.show)
     def peerIp(ip: IpAddress): (String, String) = ("net.peer.ip", ip.toString()) // TODO: Check that this is the right way
     def peerPort(port: Port): (String, String) = ("net.peer.port", port.value.show)
+
+    def logKind(logKind: String) = ("contextlog.kind", logKind)
+    def headersDuration(duration: FiniteDuration) = ("http.duration_ms", duration.toMillis.toString())
+    def bodyDuration(duration: FiniteDuration) = ("http.duration_body_ms", duration.toMillis.toString())
   }
 
   object Client {
