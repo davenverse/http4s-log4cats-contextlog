@@ -29,6 +29,7 @@ object HttpStructuredContext {
     def peerPort(port: Port): (String, String) = ("net.peer.port", port.value.show)
 
     def logKind(logKind: String) = ("contextlog.kind", logKind)
+    def accessTime(duration: FiniteDuration) = ("http.access_time", duration.toMillis.toString)
     def headersDuration(duration: FiniteDuration) = ("http.duration_ms", duration.toMillis.toString())
     def bodyDuration(duration: FiniteDuration) = ("http.duration_body_ms", duration.toMillis.toString())
   }

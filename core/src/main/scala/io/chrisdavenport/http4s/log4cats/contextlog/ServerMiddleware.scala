@@ -193,7 +193,8 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         Clock[F].realTime.flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+            HttpStructuredContext.Common.accessTime(start)
           Concurrent[F].uncancelable(poll =>
             poll{
               for {
@@ -230,7 +231,8 @@ object ServerMiddleware {
                           reqBodyFinal <- reqBody.get
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
-                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                            HttpStructuredContext.Common.accessTime(start)
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
 
@@ -241,7 +243,7 @@ object ServerMiddleware {
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = outcomeContext(outcome)
                           finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
-                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                         } yield ()
                       }
                   )
@@ -254,7 +256,7 @@ object ServerMiddleware {
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
                 case Outcome.Errored(e) =>
                   Clock[F].realTime.flatMap{ end =>
@@ -262,7 +264,7 @@ object ServerMiddleware {
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
                 case Outcome.Succeeded(_) =>  Applicative[F].unit
               }
@@ -298,7 +300,8 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         OptionT.liftF(Clock[F].realTime).flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+            HttpStructuredContext.Common.accessTime(start)
           Concurrent[OptionT[F, *]].uncancelable(poll =>
             poll{ OptionT{
               for {
@@ -336,7 +339,8 @@ object ServerMiddleware {
                             reqBodyFinal <- reqBody.get
                             reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                             newPureReq = reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
-                            reqContext = request(newPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+                            reqContext = request(newPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                              HttpStructuredContext.Common.accessTime(start)
                             respBodyFinal <- respBody.get
                             respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
                             bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
@@ -346,7 +350,7 @@ object ServerMiddleware {
                             outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                             outcomeCtx = outcomeContext(outcome)
                             finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
-                            _ <- logLevelAware(logger, finalCtx, newPureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
+                            _ <- logLevelAware(logger, finalCtx, newPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                           } yield ()
                         }
                     ).some.pure[F]
@@ -355,13 +359,14 @@ object ServerMiddleware {
                       bodyEnd <- Clock[F].realTime
                       reqBodyFinal <- reqBody.get
                       reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
-                      reqContext = request(reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk))), reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+                      reqContext = request(reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk))), reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                        HttpStructuredContext.Common.accessTime(start)
                       bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                       requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                       outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](None)
                       outcomeCtx = outcomeContext(outcome)
                       finalCtx = reqContext + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx
-                      _ <- logLevelAware(logger, finalCtx, pureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
+                      _ <- logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     } yield ()
                     action.as(Option.empty[Response[F]])
                 }
@@ -374,7 +379,7 @@ object ServerMiddleware {
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Errored(e) =>
                   OptionT.liftF(Clock[F].realTime.flatMap{ end =>
@@ -382,7 +387,7 @@ object ServerMiddleware {
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Succeeded(fa) => OptionT.liftF(Applicative[F].unit)
               }
@@ -415,7 +420,8 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         Clock[F].realTime.flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+            HttpStructuredContext.Common.accessTime(start)
           Concurrent[F].uncancelable(poll =>
             poll(routes.run(req))
               .guaranteeCase{
@@ -425,7 +431,7 @@ object ServerMiddleware {
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
                 case Outcome.Errored(e) =>
                   Clock[F].realTime.flatMap{ end =>
@@ -433,7 +439,7 @@ object ServerMiddleware {
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
-                    logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                    logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
                 case Outcome.Succeeded(fa) => fa.flatMap{
                   case resp =>
@@ -444,7 +450,7 @@ object ServerMiddleware {
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](pureResp.some)
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration
-                      logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                      logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     }
                 }
               }
@@ -476,7 +482,8 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         OptionT.liftF(Clock[F].realTime).flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
+          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+            HttpStructuredContext.Common.accessTime(start)
           Concurrent[OptionT[F, *]].uncancelable(poll =>
             poll(routes.run(req))
               .guaranteeCase{
@@ -489,7 +496,7 @@ object ServerMiddleware {
                       val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext + outcomeCtx + duration
-                      logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                      logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     }
                   }
                 case Outcome.Errored(e) =>
@@ -500,7 +507,7 @@ object ServerMiddleware {
                       val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext+ outcomeCtx + duration
-                      logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                      logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     }
                   }
                 case Outcome.Succeeded(fa) => OptionT.liftF(fa.value.flatMap{
@@ -511,7 +518,7 @@ object ServerMiddleware {
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](option.map(pureResponse))
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration
-                      logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                      logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     }
                 })
               }
