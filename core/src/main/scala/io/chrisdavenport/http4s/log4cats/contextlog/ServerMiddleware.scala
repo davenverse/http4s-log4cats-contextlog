@@ -211,6 +211,8 @@ object ServerMiddleware {
                 resp <- routes.run{
                   newReq
                 }
+                headersEnd <- Clock[F].realTime
+                headersDuration = HttpStructuredContext.Common.headersDuration(headersEnd.minus(start))
               } yield {
                   resp.withBodyStream(
                     resp.body.observe((s: fs2.Stream[F, Byte]) =>
@@ -224,21 +226,22 @@ object ServerMiddleware {
                       .onFinalizeWeak{
                         val pureResp = pureResponse(resp)
                         for {
-                          end <- Clock[F].realTime
+                          bodyEnd <- Clock[F].realTime
                           reqBodyFinal <- reqBody.get
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
                           reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
-                          duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+
+                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                           requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                           responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders, responseAdditionalContext)
                           responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = outcomeContext(outcome)
-                          finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
                         } yield ()
                       }
                   )
@@ -247,7 +250,7 @@ object ServerMiddleware {
               .guaranteeCase{
                 case Outcome.Canceled() =>
                   Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -255,7 +258,7 @@ object ServerMiddleware {
                   }
                 case Outcome.Errored(e) =>
                   Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -313,6 +316,8 @@ object ServerMiddleware {
                 respOpt <- routes.run{
                   newReq
                 }.value
+                headersEnd <- Clock[F].realTime
+                headersDuration = HttpStructuredContext.Common.headersDuration(headersEnd.minus(start))
                 out <- respOpt match {
                   case Some(resp) =>
                     resp.withBodyStream(
@@ -327,36 +332,36 @@ object ServerMiddleware {
                         .onFinalizeWeak{
                           val pureResp = pureResponse(resp)
                           for {
-                            end <- Clock[F].realTime
+                            bodyEnd <- Clock[F].realTime
                             reqBodyFinal <- reqBody.get
                             reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                             newPureReq = reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
                             reqContext = request(newPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
                             respBodyFinal <- respBody.get
                             respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
-                            duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                            bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                             requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                             responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders, responseAdditionalContext)
                             responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
                             outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                             outcomeCtx = outcomeContext(outcome)
-                            finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ requestBodyCtx ++ responseBodyCtx
-                            _ <- logLevelAware(logger, finalCtx, newPureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                            finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
+                            _ <- logLevelAware(logger, finalCtx, newPureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
                           } yield ()
                         }
                     ).some.pure[F]
                   case None =>
                     val action = for {
-                      end <- Clock[F].realTime
+                      bodyEnd <- Clock[F].realTime
                       reqBodyFinal <- reqBody.get
                       reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                       reqContext = request(reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk))), reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext)
-                      duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                       requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                       outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](None)
                       outcomeCtx = outcomeContext(outcome)
-                      finalCtx = reqContext + outcomeCtx + duration ++ requestBodyCtx
-                      _ <- logLevelAware(logger, finalCtx, pureReq, outcome, end, removedContextKeys, logLevel, logMessage)
+                      finalCtx = reqContext + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx
+                      _ <- logLevelAware(logger, finalCtx, pureReq, outcome, bodyEnd, removedContextKeys, logLevel, logMessage)
                     } yield ()
                     action.as(Option.empty[Response[F]])
                 }
@@ -365,7 +370,7 @@ object ServerMiddleware {
               .guaranteeCase{
                 case Outcome.Canceled() =>
                   OptionT.liftF(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -373,7 +378,7 @@ object ServerMiddleware {
                   })
                 case Outcome.Errored(e) =>
                   OptionT.liftF(Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -416,7 +421,7 @@ object ServerMiddleware {
               .guaranteeCase{
                 case Outcome.Canceled() =>
                   Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -424,7 +429,7 @@ object ServerMiddleware {
                   }
                 case Outcome.Errored(e) =>
                   Clock[F].realTime.flatMap{ end =>
-                    val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                    val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
                     val finalCtx = reqContext + outcomeCtx + duration
@@ -434,7 +439,7 @@ object ServerMiddleware {
                   case resp =>
                     val pureResp = pureResponse(resp)
                     Clock[F].realTime.flatMap{ end =>
-                      val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                       val responseCtx = response(pureResp, respHeaders, responseAdditionalContext)
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](pureResp.some)
                       val outcomeCtx = outcomeContext(outcome)
@@ -480,7 +485,7 @@ object ServerMiddleware {
 
                   OptionT.liftF{
                     Clock[F].realTime.flatMap{ end =>
-                      val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                       val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext + outcomeCtx + duration
@@ -491,7 +496,7 @@ object ServerMiddleware {
 
                   OptionT.liftF{
                     Clock[F].realTime.flatMap{ end =>
-                      val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                       val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                       val outcomeCtx = outcomeContext(outcome)
                       val finalCtx = reqContext+ outcomeCtx + duration
@@ -501,7 +506,7 @@ object ServerMiddleware {
                 case Outcome.Succeeded(fa) => OptionT.liftF(fa.value.flatMap{
                   case option =>
                     Clock[F].realTime.flatMap{ end =>
-                      val duration = "http.duration_ms" -> end.minus(start).toMillis.toString()
+                      val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                       val responseCtx = option.map(resp => response(pureResponse(resp), respHeaders, responseAdditionalContext)).getOrElse(Map.empty)
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](option.map(pureResponse))
                       val outcomeCtx = outcomeContext(outcome)
@@ -518,6 +523,7 @@ object ServerMiddleware {
 
   private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
     val builder = Map.newBuilder[String, String]
+    builder += HttpStructuredContext.Common.logKind("server")
     builder += HttpStructuredContext.Common.method(request.method)
     if (includeUrl(request)) {
       builder += HttpStructuredContext.Common.url(request.uri)
