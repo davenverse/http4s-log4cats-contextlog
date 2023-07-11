@@ -39,6 +39,8 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(
     name := "http4s-log4cats-contextlog",
 
+    mimaPreviousArtifacts := Set(), // This is 0.0
+
     libraryDependencies ++= Seq(
       "org.typelevel"               %%% "cats-core"                  % catsV,
       "org.typelevel"               %%% "cats-effect"                % catsEffectV,
