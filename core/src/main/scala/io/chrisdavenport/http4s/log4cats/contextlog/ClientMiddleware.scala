@@ -374,10 +374,6 @@ object ClientMiddleware {
     HttpStructuredContext.Client.peerName(request.uri).foreach { ctx =>
       builder += ctx
     }
-    // Special Server
-    request.from.foreach(ip =>
-      builder += HttpStructuredContext.Server.clientIp(ip)
-    )
     builder ++=
       HttpStructuredContext.Headers.request(request.headers, headers)
 
