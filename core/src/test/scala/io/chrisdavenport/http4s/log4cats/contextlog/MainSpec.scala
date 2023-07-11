@@ -46,7 +46,7 @@ class MainSpec extends CatsEffectSuite {
             Map(
 
               "http.target" -> "/",
-              "exit.case" -> "succeeded",
+              "http.exit_case" -> "succeeded",
               "http.method" -> "GET",
 
               "http.status_code" -> "200",
@@ -54,7 +54,7 @@ class MainSpec extends CatsEffectSuite {
               "http.host" -> "localhost",
               "http.flavor" -> "1.1",
               "http.url" -> "/",
-              "contextlog.kind" -> "server",
+              "http.kind" -> "server",
             )
           )
         ))
@@ -88,13 +88,13 @@ class MainSpec extends CatsEffectSuite {
             Map(
               "http.response.header.content-length" -> "20",
               "http.target" -> "/",
-              "exit.case" -> "succeeded",
+              "http.exit_case" -> "succeeded",
               "http.method" -> "GET",
               "http.request_content_length" -> "19",
               "http.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
-              "contextlog.kind" -> "server",
+              "http.kind" -> "server",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
@@ -138,13 +138,13 @@ class MainSpec extends CatsEffectSuite {
             Map(
               "http.response.header.content-length" -> "20",
               "http.target" -> "/",
-              "exit.case" -> "succeeded",
+              "http.exit_case" -> "succeeded",
               "http.method" -> "GET",
               "http.request_content_length" -> "19",
               "http.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
-              "contextlog.kind" -> "server",
+              "http.kind" -> "server",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
@@ -188,13 +188,14 @@ class MainSpec extends CatsEffectSuite {
               "http.scheme" -> "http",
               "http.response.header.content-length" -> "20",
               "http.target" -> "/",
-              "exit.case" -> "succeeded",
+              "http.exit_case" -> "succeeded",
               "http.method" -> "GET",
               "http.request_content_length" -> "19",
               "http.status_code" -> "200",
+              "http.kind" -> "client",
               "http.request.body" -> "Hello from Request!",
+              "net.peer.name" -> "test.http4s.org",
               "http.response.body" -> "Hello from Response!",
-              "contextlog.kind" -> "client",
               "http.request.header.content-length" -> "19",
               "http.request.header.content-type" -> "text/plain; charset=UTF-8",
               "http.response.header.content-type" -> "text/plain; charset=UTF-8",
