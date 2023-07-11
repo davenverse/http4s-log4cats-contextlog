@@ -47,7 +47,7 @@ object ClientMiddleware {
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: Builder[F] =
     fromLogger(LoggerFactory[F].getLogger)
 
-  def fromLogger[F[_]: Concurrent: Clock](logger: SelfAwareStructuredLogger[F]): Builder[F] =
+  def fromLogger[F[_]: Concurrent: Clock](logger: StructuredLogger[F]): Builder[F] =
     new Builder[F](
       logger,
       Defaults.willLog[F],
@@ -67,7 +67,7 @@ object ClientMiddleware {
     )
 
   final class Builder[F[_]: Concurrent: Clock] private[ClientMiddleware](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -90,7 +90,7 @@ object ClientMiddleware {
   ){ self =>
 
     private def copy(
-      logger: SelfAwareStructuredLogger[F] = self.logger,
+      logger: StructuredLogger[F] = self.logger,
       willLog: Request[Pure] => F[Boolean] = self.willLog,
       routeClassifier: Request[Pure] => Option[String] = self.routeClassifier,
       reqHeaders: Set[CIString] = self.reqHeaders,
@@ -166,7 +166,7 @@ object ClientMiddleware {
 
 
   private def clientWithBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -274,7 +274,7 @@ object ClientMiddleware {
   }
 
   private def clientNoBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],

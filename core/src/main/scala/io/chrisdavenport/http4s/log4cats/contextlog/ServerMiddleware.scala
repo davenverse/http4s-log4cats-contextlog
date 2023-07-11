@@ -46,7 +46,7 @@ object ServerMiddleware {
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: Builder[F] =
     fromLogger(LoggerFactory[F].getLogger)
 
-  def fromLogger[F[_]: Concurrent: Clock](logger: SelfAwareStructuredLogger[F]): Builder[F] =
+  def fromLogger[F[_]: Concurrent: Clock](logger: StructuredLogger[F]): Builder[F] =
     new Builder[F](
       logger,
       Defaults.willLog[F],
@@ -66,7 +66,7 @@ object ServerMiddleware {
     )
 
   final class Builder[F[_]: Concurrent: Clock] private[ServerMiddleware](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -90,7 +90,7 @@ object ServerMiddleware {
   ){ self =>
 
     private def copy(
-      logger: SelfAwareStructuredLogger[F] = self.logger,
+      logger: StructuredLogger[F] = self.logger,
       willLog: Request[Pure] => F[Boolean] = self.willLog,
       routeClassifier: Request[Pure] => Option[String] = self.routeClassifier,
       reqHeaders: Set[CIString] = self.reqHeaders,
@@ -168,7 +168,7 @@ object ServerMiddleware {
   }
 
   private def httpAppWithBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -277,7 +277,7 @@ object ServerMiddleware {
   }
 
   private def httpRoutesWithBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -403,7 +403,7 @@ object ServerMiddleware {
 
 
   private def httpAppNoBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
@@ -465,7 +465,7 @@ object ServerMiddleware {
   }
 
   private def httpRoutesNoBody[F[_]: Concurrent: Clock](
-    logger: SelfAwareStructuredLogger[F],
+    logger: StructuredLogger[F],
     willLog: Request[Pure] => F[Boolean],
 
     routeClassifier: Request[Pure] => Option[String],
