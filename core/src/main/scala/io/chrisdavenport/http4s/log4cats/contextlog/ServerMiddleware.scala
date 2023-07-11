@@ -193,8 +193,6 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         Clock[F].realTime.flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
-            HttpStructuredContext.Common.accessTime(start)
           Concurrent[F].uncancelable(poll =>
             poll{
               for {
@@ -255,6 +253,8 @@ object ServerMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
@@ -263,6 +263,8 @@ object ServerMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   }
@@ -300,8 +302,6 @@ object ServerMiddleware {
       if (!enabled) routes.run(req)
       else {
         OptionT.liftF(Clock[F].realTime).flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
-            HttpStructuredContext.Common.accessTime(start)
           Concurrent[OptionT[F, *]].uncancelable(poll =>
             poll{ OptionT{
               for {
@@ -378,6 +378,8 @@ object ServerMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
@@ -386,6 +388,8 @@ object ServerMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })

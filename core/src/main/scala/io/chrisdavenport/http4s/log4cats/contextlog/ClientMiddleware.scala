@@ -191,8 +191,6 @@ object ClientMiddleware {
       if (!enabled) client.run(req)
       else {
         Resource.eval(Clock[F].realTime).flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
-            HttpStructuredContext.Common.accessTime(start)
           Concurrent[Resource[F, *]].uncancelable(poll =>
             poll{
               for {
@@ -252,6 +250,8 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
@@ -260,6 +260,8 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = outcomeContext(outcome)
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                      HttpStructuredContext.Common.accessTime(start)
                     val finalCtx = reqContext + outcomeCtx + duration
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
