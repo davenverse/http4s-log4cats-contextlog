@@ -28,13 +28,11 @@ object ServerMiddleware {
     def willLog[F[_]: Applicative](prelude: Request[Pure]): F[Boolean] = true.pure[F]
     def routeClassifier(prelude: Request[Pure]): Option[String] = None
     def reqHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    // def requestAdditionalContext(prelude: Request[Pure]) = Map.empty[String, String]
     def requestIncludeUrl(prelude: Request[Pure]) = true
     val requestLogBody = true
     val requestBodyMaxSize = 65535
 
     def respHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    // def responseAdditionalContext(prelude: Response[Pure]) = Map.empty[String, String]
     val responseLogBody = true
     val responseBodyMaxSize = 65535
     val removedContextKeys = Set.empty[String]
