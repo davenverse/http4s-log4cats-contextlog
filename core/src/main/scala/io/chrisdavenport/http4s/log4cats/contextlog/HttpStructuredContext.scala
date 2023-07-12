@@ -67,10 +67,13 @@ object HttpStructuredContext {
       generic(headers, s, "response")
 
     private def generic(headers: Headers, s: Set[CIString], messageType: String): Map[String, String] = {
-      headers.headers.filter(h => s.contains(h.name))
+      headers.headers
         .groupBy(r => (r.name))
         .map{
-          case (name, list) => ("http." ++ messageType ++ ".headers." ++ name.toString.toLowerCase, list.map(_.value).mkString(", "))
+          case (name, list) =>
+            val key = "http." ++ messageType ++ ".headers." ++ name.toString.toLowerCase
+            if (s.contains(name)) (key, list.map(_.value).mkString(", "))
+            else (key, "<REDACTED>")
         }
     }
 
