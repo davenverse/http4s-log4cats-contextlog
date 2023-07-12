@@ -13,18 +13,18 @@ import cats.effect.Outcome
 object HttpStructuredContext {
 
   object Common {
-    def method(m: Method): (String, String) = ("http.method", m.name)
-    def url(url: Uri): (String, String)= ("http.url", url.renderString)
-    def target(url: Uri): (String, String) = ("http.target", url.copy(scheme = None, authority = None).renderString)
-    def host(host: org.http4s.headers.Host): (String, String) = ("http.host", org.http4s.headers.Host.headerInstance.value(host))
-    def scheme(scheme: Uri.Scheme): (String, String) = ("http.scheme", scheme.value)
+    def method(m: Method): (String, String) = ("http.request.method", m.name)
+    def url(url: Uri): (String, String)= ("http.request.url", url.renderString)
+    def target(url: Uri): (String, String) = ("http.request.target", url.copy(scheme = None, authority = None).renderString)
+    def host(host: org.http4s.headers.Host): (String, String) = ("http.request.host", org.http4s.headers.Host.headerInstance.value(host))
+    def scheme(scheme: Uri.Scheme): (String, String) = ("http.request.scheme", scheme.value)
     
-    def status(status: Status): (String, String) = ("http.status_code", status.code.show)
+    def status(status: Status): (String, String) = ("http.response.status_code", status.code.show)
     // Need to check both request and response in case negotiation happens
     def flavor(httpVersion: HttpVersion): (String, String) = ("http.flavor", httpVersion.major.toString() ++ "." ++ httpVersion.minor.toString())
-    def userAgent(userAgent: `User-Agent`): (String, String) = ("http.user_agent", `User-Agent`.headerInstance.value(userAgent))
-    def requestContentLength(cl: Long): (String, String) = ("http.request_content_length", cl.show)
-    def responseContentLength(cl: Long): (String, String) = ("http.response_content_length", cl.show)
+    def userAgent(userAgent: `User-Agent`): (String, String) = ("http.request.user_agent", `User-Agent`.headerInstance.value(userAgent))
+    def requestContentLength(cl: Long): (String, String) = ("http.request.content_length", cl.show)
+    def responseContentLength(cl: Long): (String, String) = ("http.response.content_length", cl.show)
     def retryCount(i: Int): (String, String)= ("http.retry_count", i.show)
     def peerIp(ip: IpAddress): (String, String) = ("net.peer.ip", ip.toString()) // TODO: Check that this is the right way
     def peerPort(port: Port): (String, String) = ("net.peer.port", port.value.show)
@@ -70,7 +70,7 @@ object HttpStructuredContext {
       headers.headers.filter(h => s.contains(h.name))
         .groupBy(r => (r.name))
         .map{
-          case (name, list) => ("http." ++ messageType ++ ".header." ++ name.toString.toLowerCase, list.map(_.value).mkString(", "))
+          case (name, list) => ("http." ++ messageType ++ ".headers." ++ name.toString.toLowerCase, list.map(_.value).mkString(", "))
         }
     }
 

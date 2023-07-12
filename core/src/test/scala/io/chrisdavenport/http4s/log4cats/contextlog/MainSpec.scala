@@ -45,15 +45,15 @@ class MainSpec extends CatsEffectSuite {
             None,
             Map(
 
-              "http.target" -> "/",
+              "http.request.target" -> "/",
               "http.exit_case" -> "succeeded",
-              "http.method" -> "GET",
+              "http.request.method" -> "GET",
 
-              "http.status_code" -> "200",
+              "http.response.status_code" -> "200",
 
-              "http.host" -> "localhost",
+              "http.request.host" -> "localhost",
               "http.flavor" -> "1.1",
-              "http.url" -> "/",
+              "http.request.url" -> "/",
               "http.kind" -> "server",
             )
           )
@@ -86,22 +86,22 @@ class MainSpec extends CatsEffectSuite {
             "Http Server - GET",
             None,
             Map(
-              "http.response.header.content-length" -> "20",
-              "http.target" -> "/",
+              "http.response.headers.content-length" -> "20",
+              "http.request.target" -> "/",
               "http.exit_case" -> "succeeded",
-              "http.method" -> "GET",
-              "http.request_content_length" -> "19",
-              "http.status_code" -> "200",
+              "http.request.method" -> "GET",
+              "http.request.content_length" -> "19",
+              "http.response.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
               "http.kind" -> "server",
-              "http.request.header.content-length" -> "19",
-              "http.request.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response_content_length" -> "20",
-              "http.host" -> "localhost",
+              "http.request.headers.content-length" -> "19",
+              "http.request.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.content_length" -> "20",
+              "http.request.host" -> "localhost",
               "http.flavor" -> "1.1",
-              "http.url" -> "/"
+              "http.request.url" -> "/"
             )
           )
         ))
@@ -136,22 +136,22 @@ class MainSpec extends CatsEffectSuite {
             "Req Body - Hello from Request!\nResp Body - Hello from Response!",
             None,
             Map(
-              "http.response.header.content-length" -> "20",
-              "http.target" -> "/",
+              "http.response.headers.content-length" -> "20",
+              "http.request.target" -> "/",
               "http.exit_case" -> "succeeded",
-              "http.method" -> "GET",
-              "http.request_content_length" -> "19",
-              "http.status_code" -> "200",
+              "http.request.method" -> "GET",
+              "http.request.content_length" -> "19",
+              "http.response.status_code" -> "200",
               "http.request.body" -> "Hello from Request!",
               "http.response.body" -> "Hello from Response!",
               "http.kind" -> "server",
-              "http.request.header.content-length" -> "19",
-              "http.request.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response_content_length" -> "20",
-              "http.host" -> "localhost",
+              "http.request.headers.content-length" -> "19",
+              "http.request.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.content_length" -> "20",
+              "http.request.host" -> "localhost",
               "http.flavor" -> "1.1",
-              "http.url" -> "/"
+              "http.request.url" -> "/"
             )
           )
         ))
@@ -185,24 +185,25 @@ class MainSpec extends CatsEffectSuite {
             "HttpClient \"GET http://test.http4s.org/ HTTP/1.1\" 200 20",
             None,
             Map(
-              "http.scheme" -> "http",
-              "http.response.header.content-length" -> "20",
-              "http.target" -> "/",
+              "http.request.method" -> "GET",
+              "http.request.scheme" -> "http",
+              "http.response.headers.content-length" -> "20",
+              "http.request.target" -> "/",
               "http.exit_case" -> "succeeded",
-              "http.method" -> "GET",
-              "http.request_content_length" -> "19",
-              "http.status_code" -> "200",
+
+              "http.request.content_length" -> "19",
+              "http.response.status_code" -> "200",
               "http.kind" -> "client",
               "http.request.body" -> "Hello from Request!",
               "net.peer.name" -> "test.http4s.org",
               "http.response.body" -> "Hello from Response!",
-              "http.request.header.content-length" -> "19",
-              "http.request.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response.header.content-type" -> "text/plain; charset=UTF-8",
-              "http.response_content_length" -> "20",
-              "http.host" -> "test.http4s.org",
+              "http.request.headers.content-length" -> "19",
+              "http.request.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.content_length" -> "20",
+              "http.request.host" -> "test.http4s.org",
               "http.flavor" -> "1.1",
-              "http.url" -> "http://test.http4s.org/"
+              "http.request.url" -> "http://test.http4s.org/"
             )
           )
         ))
