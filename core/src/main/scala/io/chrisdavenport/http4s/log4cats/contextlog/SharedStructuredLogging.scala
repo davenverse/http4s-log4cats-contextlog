@@ -34,7 +34,28 @@ private[contextlog] object SharedStructuredLogging {
       case Outcome.Errored(_)      => LogLevel.Error.some
     }
   }
-  
+
+  private[contextlog] def quietLogLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = {
+    val _ = prelude
+    outcome match {
+      case Outcome.Succeeded(Some(resp)) =>
+        resp.status.responseClass match {
+          case Status.Informational => None
+          case Status.Successful    => None
+          case Status.Redirection   => None
+          case Status.ClientError =>
+            if (resp.status.code === 404) None
+            else LogLevel.Warn.some
+          case Status.ServerError => LogLevel.Error.some
+
+        }
+      case Outcome.Succeeded(None) => None
+      case Outcome.Canceled()      => LogLevel.Warn.some
+      case Outcome.Errored(_)      => LogLevel.Error.some
+    }
+  }
+
+
   private[contextlog] def logLevelAware[F[_]: Applicative](
     logger: StructuredLogger[F],
     ctx: Map[String, String],

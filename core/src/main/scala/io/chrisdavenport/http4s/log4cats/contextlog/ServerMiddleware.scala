@@ -40,6 +40,8 @@ object ServerMiddleware {
     def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
     def logLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
       SharedStructuredLogging.logLevel(request, outcome)
+    def quietLogLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
+      SharedStructuredLogging.quietLogLevel(request, outcome)
     def logMessage(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
       CommonLog.logMessage(ZoneId.systemDefault(), false, false, false)(request, outcome, now)
   }

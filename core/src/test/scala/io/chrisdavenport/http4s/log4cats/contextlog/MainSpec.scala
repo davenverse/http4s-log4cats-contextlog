@@ -158,8 +158,11 @@ class MainSpec extends CatsEffectSuite {
     }
   }
 
-    test("Successfully Create a Client Context Log with Body") {
+  test("Successfully Create a Client Context Log with Body") {
     val logger = StructuredTestingLogger.impl[IO]()
+
+    def clientLogMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      s"HttpClient - ${prelude.method}"
 
     val server = HttpRoutes.of[IO]{
       case req => req.body.compile.drain >> Response[IO](Status.Ok).withEntity("Hello from Response!").pure[IO]
@@ -170,7 +173,7 @@ class MainSpec extends CatsEffectSuite {
     val builder = ClientMiddleware.fromLogger(logger)
       .withLogRequestBody(true)
       .withLogResponseBody(true)
-      // .withLogMessage(logMessage)
+      .withLogMessage(clientLogMessage)
       .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms", "http.access_time"))
 
     val finalApp = builder.client(client)
@@ -182,7 +185,7 @@ class MainSpec extends CatsEffectSuite {
         logged,
         Vector(
           INFO(
-            "HttpClient \"GET http://test.http4s.org/ HTTP/1.1\" 200 20",
+            "HttpClient - GET",
             None,
             Map(
               "http.request.method" -> "GET",
