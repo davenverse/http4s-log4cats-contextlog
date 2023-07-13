@@ -151,6 +151,9 @@ object HttpStructuredContext {
       "X-Real-Ip",
       "X-Scheme",
 
+      "X-Request-Start",
+      "X-Runtime",
+
       "B3",
       "X-B3-Sampled",
       "X-B3-SpanId",
