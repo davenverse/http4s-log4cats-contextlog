@@ -99,7 +99,7 @@ object HttpStructuredContext {
       "DNT", "Tk",
       "Content-Disposition",
       "Content-Length", "Content-Type", "Content-Encoding", "Content-Language", "Content-Location",
-      "Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
+      "Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Scheme", "X-Forwarded-Port", "Via",
       "Location",
       "From", "Host", "Referer", "Referer-Policy", "User-Agent",
       "Allow", "Server",
@@ -146,7 +146,19 @@ object HttpStructuredContext {
       "Sec-CH-UA-Mobile",
       "Sec-CH-UA-Model",
       "Sec-CH-UA-Platform",
-      "Sec-CH-UA-Platform-Version"
+      "Sec-CH-UA-Platform-Version",
+
+      "X-Real-Ip",
+      "X-Scheme",
+
+      "X-Request-Start",
+      "X-Runtime",
+
+      "B3",
+      "X-B3-Sampled",
+      "X-B3-SpanId",
+      "X-B3-TraceId",
+
     ).map(CIString(_))
   }
 }
