@@ -29,19 +29,22 @@ object ClientMiddleware {
     def willLog[F[_]: Applicative](prelude: Request[Pure]): F[Boolean] = true.pure[F]
     def routeClassifier(prelude: Request[Pure]): Option[String] = None
     def reqHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    def requestAdditionalContext(prelude: Request[Pure]) = Map.empty[String, String]
+
     def requestIncludeUrl(prelude: Request[Pure]) = true
     val requestLogBody = true
     val requestBodyMaxSize = 65535
 
     def respHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    def responseAdditionalContext(prelude: Response[Pure]) = Map.empty[String, String]
     val responseLogBody = true
     val responseBodyMaxSize = 65535
     val removedContextKeys = Set.empty[String]
-    def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = LogLevel.Info.some
-    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
-      DefaultLog.log(prelude, outcome, now)
+    def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
+    def logLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
+      SharedStructuredLogging.logLevel(request, outcome)
+    def quietLogLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
+      SharedStructuredLogging.quietLogLevel(request, outcome)
+    def logMessage(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      CommonLog.logMessage(ZoneId.systemDefault(), false, true, true)(request, outcome, now)
   }
 
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: Builder[F] =
@@ -53,15 +56,14 @@ object ClientMiddleware {
       Defaults.willLog[F],
       Defaults.routeClassifier(_),
       Defaults.reqHeaders,
-      Defaults.requestAdditionalContext(_),
       Defaults.requestIncludeUrl(_),
       Defaults.responseLogBody,
       Defaults.requestBodyMaxSize,
       Defaults.respHeaders,
-      Defaults.responseAdditionalContext(_),
       Defaults.responseLogBody,
       Defaults.responseBodyMaxSize,
       Defaults.removedContextKeys,
+      Defaults.additionalContext(_,_),
       Defaults.logLevel(_, _),
       Defaults.logMessage(_,_,_)
     )
@@ -73,18 +75,17 @@ object ClientMiddleware {
     routeClassifier: Request[Pure] => Option[String],
 
     reqHeaders: Set[CIString],
-    requestAdditionalContext: Request[Pure] => Map[String, String],
     requestIncludeUrl: Request[Pure] => Boolean,
     requestLogBody: Boolean,
     requestBodyMaxSize: Long,
 
     respHeaders: Set[CIString],
-    responseAdditionalContext: Response[Pure] => Map[String, String],
     responseLogBody: Boolean,
     responseBodyMaxSize: Long,
 
     removedContextKeys: Set[String],
 
+    additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String],
     logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel],
     logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String,
   ){ self =>
@@ -94,15 +95,14 @@ object ClientMiddleware {
       willLog: Request[Pure] => F[Boolean] = self.willLog,
       routeClassifier: Request[Pure] => Option[String] = self.routeClassifier,
       reqHeaders: Set[CIString] = self.reqHeaders,
-      requestAdditionalContext: Request[Pure] => Map[String, String] = self.requestAdditionalContext,
       requestIncludeUrl: Request[Pure] => Boolean = self.requestIncludeUrl,
       requestLogBody: Boolean = self.requestLogBody,
       requestBodyMaxSize: Long = self.requestBodyMaxSize,
       respHeaders: Set[CIString] = self.respHeaders,
-      responseAdditionalContext: Response[Pure] => Map[String, String] = self.responseAdditionalContext,
       responseLogBody: Boolean = self.responseLogBody,
       responseBodyMaxSize: Long = self.responseBodyMaxSize,
       removedContextKeys: Set[String] = self.removedContextKeys,
+      additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String] = self.additionalContext,
       logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel] = self.logLevel,
       logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String = self.logMessage,
     ) = new Builder[F](
@@ -110,15 +110,14 @@ object ClientMiddleware {
       willLog,
       routeClassifier,
       reqHeaders,
-      requestAdditionalContext,
       requestIncludeUrl,
       requestLogBody,
       requestBodyMaxSize,
       respHeaders,
-      responseAdditionalContext,
       responseLogBody,
       responseBodyMaxSize,
       removedContextKeys,
+      additionalContext,
       logLevel,
       logMessage
     )
@@ -133,10 +132,8 @@ object ClientMiddleware {
       copy(routeClassifier = routeClassifier)
     def withIncludeUrl(includeUrl: Request[Pure] => Boolean) =
       copy(requestIncludeUrl = includeUrl)
-    def withAdditionalRequestContext(requestAdditionalContext: Request[Pure] => Map[String, String]) =
-      copy(requestAdditionalContext = requestAdditionalContext)
-    def withAdditionalResponseContext(responseAdditionalContext: Response[Pure] => Map[String, String]) =
-      copy(responseAdditionalContext = responseAdditionalContext)
+    def withAdditionalContext(additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String]) =
+      copy(additionalContext = additionalContext)
 
     def withLogRequestBody(boolean: Boolean) =
       copy(requestLogBody = boolean)
@@ -159,8 +156,8 @@ object ClientMiddleware {
       copy(respHeaders = respHeaders)
 
     def client(client: Client[F]): Client[F] =
-      if (requestLogBody || responseLogBody) clientWithBody[F](logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, requestLogBody, requestBodyMaxSize, respHeaders, responseAdditionalContext, responseLogBody, responseBodyMaxSize, removedContextKeys, logLevel, logMessage)(client)
-      else clientNoBody[F](logger, willLog, routeClassifier, reqHeaders, requestAdditionalContext, requestIncludeUrl, respHeaders, responseAdditionalContext, removedContextKeys, logLevel, logMessage)(client)
+      if (requestLogBody || responseLogBody) clientWithBody[F](logger, willLog, routeClassifier, reqHeaders,  requestIncludeUrl, requestLogBody, requestBodyMaxSize, respHeaders, responseLogBody, responseBodyMaxSize, removedContextKeys, additionalContext, logLevel, logMessage)(client)
+      else clientNoBody[F](logger, willLog, routeClassifier, reqHeaders, requestIncludeUrl, respHeaders,  removedContextKeys, additionalContext, logLevel, logMessage)(client)
 
   }
 
@@ -172,17 +169,16 @@ object ClientMiddleware {
     routeClassifier: Request[Pure] => Option[String],
 
     reqHeaders: Set[CIString],
-    requestAdditionalContext: Request[Pure] => Map[String, String],
     requestIncludeUrl: Request[Pure] => Boolean,
     requestLogBody: Boolean,
     requestBodyMaxSize: Long,
 
     respHeaders: Set[CIString],
-    responseAdditionalContext: Response[Pure] => Map[String, String],
     responseLogBody: Boolean,
     responseBodyMaxSize: Long,
 
     removedContextKeys: Set[String],
+    additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String],
     logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel],
     logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String,
   )(client: Client[F]): Client[F] = Client{(req: Request[F]) =>
@@ -227,17 +223,18 @@ object ClientMiddleware {
                           reqBodyFinal <- reqBody.get
                           reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
-                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
                             HttpStructuredContext.Common.accessTime(start)
                           respBodyFinal <- respBody.get
                           respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                           requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
-                          responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders, responseAdditionalContext)
+                          responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders)
                           responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx
+                          additionalCtx = additionalContext(bodyPureReq, outcome)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx ++ additionalCtx
                           _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                         } yield ()
                       }
@@ -250,9 +247,10 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
                       HttpStructuredContext.Common.accessTime(start)
-                    val finalCtx = reqContext + outcomeCtx + duration
+                    val additionalCtx = additionalContext(pureReq, outcome)
+                    val finalCtx = reqContext + outcomeCtx + duration ++ additionalCtx
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Errored(e) =>
@@ -260,9 +258,10 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+                    val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
                       HttpStructuredContext.Common.accessTime(start)
-                    val finalCtx = reqContext + outcomeCtx + duration
+                    val additionalCtx = additionalContext(pureReq, outcome)
+                    val finalCtx = reqContext + outcomeCtx + duration ++ additionalCtx
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Succeeded(_) =>  Resource.eval(Applicative[F].unit)
@@ -280,13 +279,12 @@ object ClientMiddleware {
     routeClassifier: Request[Pure] => Option[String],
 
     reqHeaders: Set[CIString],
-    requestAdditionalContext: Request[Pure] => Map[String, String],
     requestIncludeUrl: Request[Pure] => Boolean,
 
     respHeaders: Set[CIString],
-    responseAdditionalContext: Response[Pure] => Map[String, String],
 
     removedContextKeys: Set[String],
+    additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String],
     logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel],
     logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String,
   )(client: Client[F]): Client[F] = Client{(req: Request[F]) =>
@@ -295,7 +293,7 @@ object ClientMiddleware {
       if (!enabled) client.run(req)
       else {
         Resource.eval(Clock[F].realTime).flatMap{ start =>
-          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl, requestAdditionalContext) +
+          val reqContext = request(pureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
             HttpStructuredContext.Common.accessTime(start)
           Concurrent[Resource[F, *]].uncancelable(poll =>
             poll(client.run(req))
@@ -305,7 +303,8 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.canceled[Option, Throwable, Response[Pure]]
                     val outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                    val finalCtx = reqContext + outcomeCtx + duration
+                    val additionalCtx = additionalContext(pureReq, outcome)
+                    val finalCtx = reqContext + outcomeCtx + duration ++ additionalCtx
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Errored(e) =>
@@ -313,7 +312,8 @@ object ClientMiddleware {
                     val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
                     val outcome = Outcome.errored[Option, Throwable, Response[Pure]](e)
                     val outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                    val finalCtx = reqContext + outcomeCtx + duration
+                    val additionalCtx = additionalContext(pureReq, outcome)
+                    val finalCtx = reqContext + outcomeCtx + duration ++ additionalCtx
                     logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                   })
                 case Outcome.Succeeded(fa) => fa.flatMap{
@@ -321,10 +321,11 @@ object ClientMiddleware {
                     val pureResp = pureResponse(resp)
                     Resource.eval(Clock[F].realTime.flatMap{ end =>
                       val duration = HttpStructuredContext.Common.headersDuration(end.minus(start))
-                      val responseCtx = response(pureResp, respHeaders, responseAdditionalContext)
+                      val responseCtx = response(pureResp, respHeaders)
                       val outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](pureResp.some)
                       val outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                      val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration
+                      val additionalCtx = additionalContext(pureReq, outcome)
+                      val finalCtx = reqContext ++ responseCtx + outcomeCtx + duration ++ additionalCtx
                       logLevelAware(logger, finalCtx, pureReq, outcome, start, removedContextKeys, logLevel, logMessage)
                     })
                 }
@@ -335,7 +336,7 @@ object ClientMiddleware {
     }
   }
 
-  private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean, additionalRequestContext: Request[Pure] => Map[String, String]): Map[String, String] = {
+  private def request[F[_]](request: Request[Pure], headers: Set[CIString], routeClassifier: Request[Pure] => Option[String], includeUrl: Request[Pure] => Boolean): Map[String, String] = {
     val builder = Map.newBuilder[String, String]
     builder += HttpStructuredContext.Common.logKind("client")
     builder += HttpStructuredContext.Common.method(request.method)
@@ -377,8 +378,6 @@ object ClientMiddleware {
     builder ++=
       HttpStructuredContext.Headers.request(request.headers, headers)
 
-    builder ++= additionalRequestContext(request)
-
     retryCount(request.attributes).foreach{ count =>
       builder += HttpStructuredContext.Common.retryCount(count)
     }
@@ -386,7 +385,7 @@ object ClientMiddleware {
     builder.result()
   }
 
-  def response[F[_]](response: Response[Pure], headers: Set[CIString], responseAdditionalContext: Response[Pure] => Map[String, String]): Map[String, String] = {
+  def response[F[_]](response: Response[Pure], headers: Set[CIString]): Map[String, String] = {
     val builder = Map.newBuilder[String, String]
 
     builder += HttpStructuredContext.Common.status(response.status)
@@ -398,8 +397,6 @@ object ClientMiddleware {
     builder ++=
       HttpStructuredContext.Headers.response(response.headers, headers)
 
-    builder ++= responseAdditionalContext(response)
-
     builder.result()
   }
 
@@ -407,45 +404,6 @@ object ClientMiddleware {
     // AttemptCountKey is 1,2,3,4 for the initial request,
     // since we want to do retries. We substract by 1 to get 0,1,2,3.
     vault.lookup(Retry.AttemptCountKey).map(i => i - 1)
-  }
-
-  object DefaultLog {
-    private val SPACE = ' '
-    private val DASH = '-'
-    private val DQUOTE = '"'
-    def log(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
-      val statusS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.status.code.toString()
-        case Outcome.Succeeded(None) => DASH.toString()
-        case Outcome.Errored(e) => DASH.toString()
-        case Outcome.Canceled() => DASH.toString()
-      }
-      val respLengthS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.contentLength.fold(DASH.toString())(l => l.toString())
-        case Outcome.Succeeded(None) => DASH.toString()
-        case Outcome.Errored(e) => DASH.toString()
-        case Outcome.Canceled() => DASH.toString()
-      }
-
-      val sb = new StringBuilder()
-      sb.append("HttpClient")
-      sb.append(SPACE)
-
-      sb.append(DQUOTE)
-      sb.append(request.method.name)
-      sb.append(SPACE)
-      sb.append(request.uri.renderString)
-      sb.append(SPACE)
-      sb.append(request.httpVersion.renderString)
-      sb.append(DQUOTE)
-      sb.append(SPACE)
-
-      sb.append(statusS)
-      sb.append(SPACE)
-      sb.append(respLengthS)
-
-      sb.toString()
-    }
   }
 
 }
