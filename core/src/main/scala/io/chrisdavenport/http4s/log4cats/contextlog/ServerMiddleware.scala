@@ -22,6 +22,7 @@ import fs2.{Stream, Pure}
 import SharedStructuredLogging._
 import java.time.{Instant, ZoneId}
 import java.time.format.DateTimeFormatter
+import org.typelevel.ci._
 
 object ServerMiddleware {
   object Defaults {
@@ -36,10 +37,11 @@ object ServerMiddleware {
     val responseLogBody = true
     val responseBodyMaxSize = 65535
     val removedContextKeys = Set.empty[String]
-    def additionalContext(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
-    def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = LogLevel.Info.some
-    def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
-      CommonLog.logMessage(ZoneId.systemDefault())(prelude, outcome, now)
+    def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
+    def logLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
+      SharedStructuredLogging.logLevel(request, outcome)
+    def logMessage(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      CommonLog.logMessage(ZoneId.systemDefault(), false, false, false)(request, outcome, now)
   }
 
   def fromLoggerFactory[F[_]: Concurrent: Clock: LoggerFactory]: Builder[F] =
@@ -596,70 +598,7 @@ object ServerMiddleware {
     builder.result()
   }
 
-  object CommonLog {
-    private val LSB = "["
-    private val RSB = "]"
-    private val DASH = "-"
-    private val SPACE = " "
-    private val DQUOTE = "\""
 
-    private val dateTimeFormat = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z")
-
-    def logMessage(zone: ZoneId)(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
-
-      val dateString = Instant.ofEpochMilli(now.toMillis).atZone(zone).format(dateTimeFormat)
-
-      val statusS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.status.code.toString()
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
-      }
-      val respLengthS = outcome match {
-        case Outcome.Succeeded(Some(resp)) => resp.contentLength.fold(DASH)(l => l.toString())
-        case Outcome.Succeeded(None) => DASH
-        case Outcome.Errored(e) => DASH
-        case Outcome.Canceled() => DASH
-      }
-
-      val sb = new StringBuilder()
-      sb.append(request.remote.fold(DASH)(sa => sa.host.toString())) // Remote
-      sb.append(SPACE)
-
-      sb.append(DASH) // Ident Protocol Not Implemented
-      sb.append(SPACE)
-
-      sb.append(request.remoteUser.fold(DASH)(identity)) // User
-      sb.append(SPACE)
-
-      sb.append(LSB)
-      sb.append(dateString)
-      sb.append(RSB)
-      sb.append(SPACE)
-
-      sb.append(DQUOTE)
-
-      sb.append(request.method.renderString)
-      sb.append(SPACE)
-      sb.append(request.uri.toOriginForm.renderString)
-
-      sb.append(SPACE)
-      sb.append(request.httpVersion.renderString)
-
-
-      sb.append(DQUOTE)
-      sb.append(SPACE)
-
-
-      sb.append(statusS)
-      sb.append(SPACE)
-
-      sb.append(respLengthS)
-
-      sb.toString()
-    }
-
-  }
 
 
 }
