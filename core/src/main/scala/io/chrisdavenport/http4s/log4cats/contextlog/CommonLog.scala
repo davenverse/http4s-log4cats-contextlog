@@ -17,7 +17,22 @@ object CommonLog {
 
   private val dateTimeFormat = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z")
 
-  def logMessage(zone: ZoneId, combined: Boolean, prefixed: Boolean, isClient: Boolean)(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = {
+  // TODO make into a builder.
+  def logMessage(
+    zone: ZoneId,
+    combined: Boolean,
+    prefixed: Boolean,
+    isClient: Boolean,
+    // These two protocols are not implemented, however these values are useful to convey identity
+    // if the values contains spaces, these should be wrapped by something, perhaps double quotes,
+    // to indicate for parsers.
+    identF: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[String] = (_,_) => None,
+    userF: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[String] = (_,_) => None,
+  )(
+    request: Request[Pure],
+    outcome: Outcome[Option, Throwable, Response[Pure]],
+    now: FiniteDuration
+  ): String = {
 
     val dateString = Instant.ofEpochMilli(now.toMillis).atZone(zone).format(dateTimeFormat)
 
@@ -34,6 +49,9 @@ object CommonLog {
       case Outcome.Canceled() => DASH
     }
 
+    val identS = identF(request, outcome).getOrElse(DASH)
+    val userS = userF(request, outcome).getOrElse(DASH)
+
     val sb = new StringBuilder()
     if (prefixed){
       if (isClient) sb.append("HttpClient ")
@@ -43,10 +61,10 @@ object CommonLog {
     else sb.append(request.from.fold(DASH)(_.toString())) // Remote
     sb.append(SPACE)
 
-    sb.append(DASH) // Ident Protocol Not Implemented
+    sb.append(identS)
     sb.append(SPACE)
 
-    sb.append(DASH) // User Not Implemented
+    sb.append(userS)
     sb.append(SPACE)
 
     sb.append(LSB)
