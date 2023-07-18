@@ -218,12 +218,38 @@ object ClientMiddleware {
                     req.withBodyStream(req.body.observe(reqPipe))
                   } else req
                 }
+
                 respBody <- Resource.eval(Concurrent[F].ref(Option.empty[fs2.Chunk[Byte]]))
                 resp <- client.run{
                   newReq
                 }
                 headersEnd <- Resource.eval(Clock[F].realTime)
                 headersDuration = HttpStructuredContext.Common.headersDuration(headersEnd.minus(start))
+                bodyEndRef <- Resource.makeCase(Concurrent[F].ref(Option.empty[FiniteDuration])){ 
+                  case (bodyEndRef, Resource.ExitCase.Succeeded) =>
+                    bodyEndRef.get.flatMap{  bodyEndOpt => // We escaped without an error, but did not log
+                      val pureResp = pureResponse(resp)
+                      val bodyDurationCtx =  bodyEndOpt.map(bodyEnd => Map(HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start)))).getOrElse(Map.empty)
+                      for {
+                        reqBodyFinal <- reqBody.get
+                        bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
+                        reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
+                          HttpStructuredContext.Common.accessTime(start)
+                        respBodyFinal <- respBody.get
+                        requestBodyCtx = (reqBodyFinal *> requestBodyEncoder(bodyPureReq)).map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
+                        finalPureResp = respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body)))
+                        responseCtx = response(finalPureResp, respHeaders)
+                        responseBodyCtx = (respBodyFinal *> responseBodyEncoder(finalPureResp)).map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
+                        outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
+                        outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
+                        additionalCtx = additionalContext(bodyPureReq, outcome)
+                        removedContextKeys = removedContextKeysF(bodyPureReq, outcome)
+                        finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration ++ bodyDurationCtx ++ requestBodyCtx ++ responseBodyCtx ++ additionalCtx
+                        _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
+                      } yield ()
+                    }
+                  case (_, _) => Applicative[F].unit // Other cases handled
+                }
               } yield {
                   resp.withBodyStream(
                     resp.body.observe((s: fs2.Stream[F, Byte]) =>
@@ -235,26 +261,7 @@ object ClientMiddleware {
                       } else s.drain
                     )
                       .onFinalizeWeak{
-                        val pureResp = pureResponse(resp)
-                        for {
-                          bodyEnd <- Clock[F].realTime
-                          reqBodyFinal <- reqBody.get
-                          bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
-                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
-                            HttpStructuredContext.Common.accessTime(start)
-                          respBodyFinal <- respBody.get
-                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
-                          requestBodyCtx = (reqBodyFinal *> requestBodyEncoder(bodyPureReq)).map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
-                          finalPureResp = respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body)))
-                          responseCtx = response(finalPureResp, respHeaders)
-                          responseBodyCtx = (respBodyFinal *> responseBodyEncoder(finalPureResp)).map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
-                          outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
-                          outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
-                          additionalCtx = additionalContext(bodyPureReq, outcome)
-                          removedContextKeys = removedContextKeysF(bodyPureReq, outcome)
-                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx ++ additionalCtx
-                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
-                        } yield ()
+                        Clock[F].realTime.flatMap(now => bodyEndRef.set(now.some))
                       }
                   )
               }
