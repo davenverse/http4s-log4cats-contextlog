@@ -31,11 +31,11 @@ object ClientMiddleware {
     def reqHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
 
     def requestIncludeUrl(prelude: Request[Pure]) = true
-    val requestLogBody = true
+    val requestObserveBody = true
     val requestBodyMaxSize = 65535
 
     def respHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    val responseLogBody = true
+    val responseObserveBody = true
     val responseBodyMaxSize = 65535
     def removedContextKeys(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]) = Set.empty[String]
     def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
@@ -57,10 +57,10 @@ object ClientMiddleware {
       Defaults.routeClassifier(_),
       Defaults.reqHeaders,
       Defaults.requestIncludeUrl(_),
-      Defaults.responseLogBody,
+      Defaults.responseObserveBody,
       Defaults.requestBodyMaxSize,
       Defaults.respHeaders,
-      Defaults.responseLogBody,
+      Defaults.responseObserveBody,
       Defaults.responseBodyMaxSize,
       Defaults.removedContextKeys,
       Defaults.additionalContext(_,_),

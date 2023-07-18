@@ -91,20 +91,21 @@ private[contextlog] object SharedStructuredLogging {
     }
   }
 
-  private[contextlog] def logBody[F[_]: Concurrent](message: Message[F]): F[String] = {
+  private[contextlog] def logBody(message: Message[Pure]): String = {
     val isBinary = message.contentType.exists(_.mediaType.binary)
     val isJson = message.contentType.exists(mT =>
       mT.mediaType == MediaType.application.json || mT.mediaType.subType.endsWith("+json")
     )
+    val binary: scodec.bits.ByteVector = message.body.compile.to(scodec.bits.ByteVector)
     if (!isBinary || isJson) {
-      message
-        .bodyText(implicitly, message.charset.getOrElse(Charset.`UTF-8`))
-        .compile
-        .string
-    }else message.body.compile.to(scodec.bits.ByteVector).map(_.toHex)
 
+      binary.decodeStringLenient(
+        replaceMalformedInput= true,
+        replaceUnmappableChars = true,
+        replacement= "�"
+      )(message.charset.getOrElse(Charset.`UTF-8`).nioCharset)
+    }else binary.toHex
   }
-
 
 
 }
