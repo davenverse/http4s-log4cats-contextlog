@@ -19,6 +19,9 @@ import scala.concurrent.duration.FiniteDuration
 class MainSpec extends CatsEffectSuite {
 
   def logMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String = s"Http Server - ${prelude.method}"
+  def ignoredKeys(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]) = {
+    Set("http.duration_ms", "http.duration_body_ms", "http.access_time")
+  }
 
   test("Successfully Create a Server Context Log") {
     val logger = StructuredTestingLogger.impl[IO]()
@@ -28,9 +31,10 @@ class MainSpec extends CatsEffectSuite {
     }.orNotFound
 
     val builder = ServerMiddleware.fromLogger(logger)
-      .withLogRequestBody(false)
-      .withLogResponseBody(false)
-      .withRemovedContextKeys(Set("http.duration_ms", "http.access_time"))
+      .withObserveRequestBody(false)
+      .withObserveResponseBody(false)
+
+      .withRemovedContextKeys(ignoredKeys)
       .withLogMessage(logMessage)
 
     val finalApp = builder.httpApp(server)
@@ -69,10 +73,8 @@ class MainSpec extends CatsEffectSuite {
     }.orNotFound
 
     val builder = ServerMiddleware.fromLogger(logger)
-      .withLogRequestBody(true)
-      .withLogResponseBody(true)
       .withLogMessage(logMessage)
-      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms", "http.access_time"))
+      .withRemovedContextKeys(ignoredKeys)
 
     val finalApp = builder.httpApp(server)
     val request = Request[IO](Method.GET).withEntity("Hello from Request!")
@@ -116,9 +118,7 @@ class MainSpec extends CatsEffectSuite {
     }.orNotFound
 
     val builder = ServerMiddleware.fromLogger(logger)
-      .withLogRequestBody(true)
-      .withLogResponseBody(true)
-      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms", "http.access_time"))
+      .withRemovedContextKeys(ignoredKeys)
       .withLogMessage{
         case (req, Outcome.Succeeded(Some(resp)), _) => s"Req Body - ${req.body.through(fs2.text.utf8.decode).compile.string}\nResp Body - ${resp.body.through(fs2.text.utf8.decode).compile.string}"
         case (_, _, _) => "Whoops!"
@@ -171,10 +171,8 @@ class MainSpec extends CatsEffectSuite {
     val client = Client.fromHttpApp(server)
 
     val builder = ClientMiddleware.fromLogger(logger)
-      .withLogRequestBody(true)
-      .withLogResponseBody(true)
       .withLogMessage(clientLogMessage)
-      .withRemovedContextKeys(Set("http.duration_ms", "http.duration_body_ms", "http.access_time"))
+      .withRemovedContextKeys(ignoredKeys)
 
     val finalApp = builder.client(client)
     val request = Request[IO](Method.GET, uri"http://test.http4s.org/").withEntity("Hello from Request!")
