@@ -22,7 +22,6 @@ import org.http4s.client.middleware.Retry
 import SharedStructuredLogging._
 import org.http4s.client.Client
 import java.time.ZoneId
-import io.chrisdavenport.http4s.log4cats.contextlog.ClientMiddleware.Defaults.removedContextKeys
 
 object ClientMiddleware {
 
