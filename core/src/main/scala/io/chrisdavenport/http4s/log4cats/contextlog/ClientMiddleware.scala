@@ -31,11 +31,15 @@ object ClientMiddleware {
     def reqHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
 
     def requestIncludeUrl(prelude: Request[Pure]) = true
-    val requestLogBody = true
+    val requestObserveBody = true
+    def requestBodyEncoder(req: Request[Pure]): Option[String] =
+      SharedStructuredLogging.logBody(req).some
     val requestBodyMaxSize = 65535
 
     def respHeaders = HttpStructuredContext.Headers.defaultHeadersAllowed
-    val responseLogBody = true
+    val responseObserveBody = true
+    def responseBodyEncoder(resp: Response[Pure]): Option[String] =
+      SharedStructuredLogging.logBody(resp).some
     val responseBodyMaxSize = 65535
     def removedContextKeys(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]) = Set.empty[String]
     def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
@@ -57,10 +61,12 @@ object ClientMiddleware {
       Defaults.routeClassifier(_),
       Defaults.reqHeaders,
       Defaults.requestIncludeUrl(_),
-      Defaults.responseLogBody,
+      Defaults.requestObserveBody,
+      Defaults.requestBodyEncoder,
       Defaults.requestBodyMaxSize,
       Defaults.respHeaders,
-      Defaults.responseLogBody,
+      Defaults.responseObserveBody,
+      Defaults.responseBodyEncoder,
       Defaults.responseBodyMaxSize,
       Defaults.removedContextKeys,
       Defaults.additionalContext(_,_),
@@ -77,10 +83,12 @@ object ClientMiddleware {
     reqHeaders: Set[CIString],
     requestIncludeUrl: Request[Pure] => Boolean,
     requestObserveBody: Boolean,
+    requestBodyEncoder: Request[Pure] => Option[String],
     requestBodyMaxSize: Long,
 
     respHeaders: Set[CIString],
     responseObserveBody: Boolean,
+    responseBodyEncoder: Response[Pure] => Option[String],
     responseBodyMaxSize: Long,
 
     removedContextKeys: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Set[String],
@@ -96,9 +104,11 @@ object ClientMiddleware {
       reqHeaders: Set[CIString] = self.reqHeaders,
       requestIncludeUrl: Request[Pure] => Boolean = self.requestIncludeUrl,
       requestObserveBody: Boolean = self.requestObserveBody,
+      requestBodyEncoder: Request[Pure] => Option[String] = self.requestBodyEncoder,
       requestBodyMaxSize: Long = self.requestBodyMaxSize,
       respHeaders: Set[CIString] = self.respHeaders,
       responseObserveBody: Boolean = self.responseObserveBody,
+      responseBodyEncoder: Response[Pure] => Option[String] = self.responseBodyEncoder,
       responseBodyMaxSize: Long = self.responseBodyMaxSize,
       removedContextKeys:  (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Set[String] = self.removedContextKeys,
       additionalContext: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Map[String, String] = self.additionalContext,
@@ -111,9 +121,11 @@ object ClientMiddleware {
       reqHeaders,
       requestIncludeUrl,
       requestObserveBody,
+      requestBodyEncoder,
       requestBodyMaxSize,
       respHeaders,
       responseObserveBody,
+      responseBodyEncoder,
       responseBodyMaxSize,
       removedContextKeys,
       additionalContext,
@@ -139,6 +151,11 @@ object ClientMiddleware {
     def withObserveResponseBody(boolean: Boolean) =
       copy(responseObserveBody = boolean)
 
+    def withRequestBodyEncoder(encoder: Request[Pure] => Option[String]) =
+      copy(requestBodyEncoder = encoder)
+    def withResponseBodyEncoder(encoder: Response[Pure] => Option[String]) = 
+      copy(responseBodyEncoder = encoder)
+
     def withRequestBodyMaxSize(l: Long) =
       copy(requestBodyMaxSize = l)
     def withResponseBodyMaxSize(l: Long) =
@@ -155,7 +172,7 @@ object ClientMiddleware {
       copy(respHeaders = respHeaders)
 
     def client(client: Client[F]): Client[F] =
-      if (requestObserveBody || responseObserveBody) clientWithBody[F](logger, willLog, routeClassifier, reqHeaders,  requestIncludeUrl, requestObserveBody, requestBodyMaxSize, respHeaders, responseObserveBody, responseBodyMaxSize, removedContextKeys, additionalContext, logLevel, logMessage)(client)
+      if (requestObserveBody || responseObserveBody) clientWithBody[F](logger, willLog, routeClassifier, reqHeaders,  requestIncludeUrl, requestObserveBody, requestBodyEncoder, requestBodyMaxSize, respHeaders, responseObserveBody, responseBodyEncoder, responseBodyMaxSize, removedContextKeys, additionalContext, logLevel, logMessage)(client)
       else clientNoBody[F](logger, willLog, routeClassifier, reqHeaders, requestIncludeUrl, respHeaders,  removedContextKeys, additionalContext, logLevel, logMessage)(client)
 
   }
@@ -170,10 +187,12 @@ object ClientMiddleware {
     reqHeaders: Set[CIString],
     requestIncludeUrl: Request[Pure] => Boolean,
     requestObserveBody: Boolean,
+    requestBodyEncoder: Request[Pure] => Option[String],
     requestBodyMaxSize: Long,
 
     respHeaders: Set[CIString],
     responseObserveBody: Boolean,
+    responseBodyEncoder: Response[Pure] => Option[String],
     responseBodyMaxSize: Long,
 
     removedContextKeysF:  (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Set[String],
@@ -220,16 +239,15 @@ object ClientMiddleware {
                         for {
                           bodyEnd <- Clock[F].realTime
                           reqBodyFinal <- reqBody.get
-                          reqBodyS <- reqBodyFinal.traverse(chunk => logBody(req.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
                           reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
                             HttpStructuredContext.Common.accessTime(start)
                           respBodyFinal <- respBody.get
-                          respBodyS <- respBodyFinal.traverse(chunk => logBody(resp.withBodyStream(fs2.Stream.chunk(chunk))))
                           bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
-                          requestBodyCtx = reqBodyS.map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
-                          responseCtx = response(respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))), respHeaders)
-                          responseBodyCtx = respBodyS.map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
+                          requestBodyCtx = (reqBodyFinal *> requestBodyEncoder(bodyPureReq)).map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
+                          finalPureResp = respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body)))
+                          responseCtx = response(finalPureResp, respHeaders)
+                          responseBodyCtx = (respBodyFinal *> responseBodyEncoder(finalPureResp)).map(body => Map("http.response.body" -> body)).getOrElse(Map.empty)
                           outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body))).some)
                           outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
                           additionalCtx = additionalContext(bodyPureReq, outcome)
