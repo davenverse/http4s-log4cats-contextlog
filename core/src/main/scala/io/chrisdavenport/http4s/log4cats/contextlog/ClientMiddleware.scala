@@ -218,12 +218,39 @@ object ClientMiddleware {
                     req.withBodyStream(req.body.observe(reqPipe))
                   } else req
                 }
+
                 respBody <- Resource.eval(Concurrent[F].ref(Option.empty[fs2.Chunk[Byte]]))
                 resp <- client.run{
                   newReq
                 }
                 headersEnd <- Resource.eval(Clock[F].realTime)
                 headersDuration = HttpStructuredContext.Common.headersDuration(headersEnd.minus(start))
+                logCompleted <- Resource.makeCase(Concurrent[F].ref(false)){ 
+                  case (ref, Resource.ExitCase.Succeeded) =>
+                    ref.get.ifM(
+                      Applicative[F].unit,
+                      { // We escaped without an error, but did not log
+                        val pureResp = pureResponse(resp)
+                        for {
+                          bodyEnd <- Clock[F].realTime
+                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
+                          reqBodyFinal <- reqBody.get
+                          bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
+                          reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
+                            HttpStructuredContext.Common.accessTime(start)
+                          requestBodyCtx = (reqBodyFinal *> requestBodyEncoder(bodyPureReq)).map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
+                          responseCtx = response(pureResp, respHeaders)
+                          outcome = Outcome.succeeded[Option, Throwable, Response[Pure]](pureResp.some)
+                          outcomeCtx = HttpStructuredContext.Common.outcome(outcome)
+                          additionalCtx = additionalContext(bodyPureReq, outcome)
+                          removedContextKeys = removedContextKeysF(bodyPureReq, outcome)
+                          finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++  additionalCtx
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
+                        } yield ()
+                      }
+                    )
+                  case (_, _) => Applicative[F].unit // Other cases handled
+                }
               } yield {
                   resp.withBodyStream(
                     resp.body.observe((s: fs2.Stream[F, Byte]) =>
@@ -238,12 +265,12 @@ object ClientMiddleware {
                         val pureResp = pureResponse(resp)
                         for {
                           bodyEnd <- Clock[F].realTime
+                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                           reqBodyFinal <- reqBody.get
                           bodyPureReq= reqBodyFinal.fold(pureReq)(chunk => pureReq.withBodyStream(Stream.chunk(chunk)))
                           reqContext = request(bodyPureReq, reqHeaders, routeClassifier, requestIncludeUrl) +
                             HttpStructuredContext.Common.accessTime(start)
                           respBodyFinal <- respBody.get
-                          bodyDuration = HttpStructuredContext.Common.bodyDuration(bodyEnd.minus(start))
                           requestBodyCtx = (reqBodyFinal *> requestBodyEncoder(bodyPureReq)).map(body => Map("http.request.body" -> body)).getOrElse(Map.empty)
                           finalPureResp = respBodyFinal.fold(pureResp)(body => pureResp.withBodyStream(Stream.chunk(body)))
                           responseCtx = response(finalPureResp, respHeaders)
@@ -253,7 +280,7 @@ object ClientMiddleware {
                           additionalCtx = additionalContext(bodyPureReq, outcome)
                           removedContextKeys = removedContextKeysF(bodyPureReq, outcome)
                           finalCtx = reqContext ++ responseCtx + outcomeCtx + headersDuration + bodyDuration ++ requestBodyCtx ++ responseBodyCtx ++ additionalCtx
-                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage)
+                          _ <- logLevelAware(logger, finalCtx, bodyPureReq, outcome, start, removedContextKeys, logLevel, logMessage).guarantee(logCompleted.set(true))
                         } yield ()
                       }
                   )

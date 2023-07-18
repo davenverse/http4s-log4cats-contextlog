@@ -211,5 +211,57 @@ class MainSpec extends CatsEffectSuite {
     }
   }
 
+  test("Successfully Create a Client Context Log with request body, even if response body is not drained") {
+    val logger = StructuredTestingLogger.impl[IO]()
+
+    def clientLogMessage(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
+      s"HttpClient - ${prelude.method}"
+
+    val server = HttpRoutes.of[IO]{
+      case req => req.body.compile.drain >> Response[IO](Status.Ok).withEntity("Hello from Response!").pure[IO]
+    }.orNotFound
+
+    val client = Client.fromHttpApp(server)
+
+    val builder = ClientMiddleware.fromLogger(logger)
+      .withLogMessage(clientLogMessage)
+      .withRemovedContextKeys(ignoredKeys)
+
+    val finalApp = builder.client(client)
+    val request = Request[IO](Method.GET, uri"http://test.http4s.org/").withEntity("Hello from Request!")
+
+    (finalApp.status(request) *> logger.logged).map{
+      logged =>
+      assertEquals(
+        logged,
+        Vector(
+          INFO(
+            "HttpClient - GET",
+            None,
+            Map(
+              "http.request.method" -> "GET",
+              "http.request.scheme" -> "http",
+              "http.response.headers.content-length" -> "20",
+              "http.request.target" -> "/",
+              "http.exit_case" -> "succeeded",
+
+              "http.request.content_length" -> "19",
+              "http.response.status_code" -> "200",
+              "http.kind" -> "client",
+              "http.request.body" -> "Hello from Request!",
+              "net.peer.name" -> "test.http4s.org",
+              "http.request.headers.content-length" -> "19",
+              "http.request.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.headers.content-type" -> "text/plain; charset=UTF-8",
+              "http.response.content_length" -> "20",
+              "http.request.host" -> "test.http4s.org",
+              "http.flavor" -> "1.1",
+              "http.request.url" -> "http://test.http4s.org/"
+            )
+          )
+        ))
+    }
+  }
+
 
 }
