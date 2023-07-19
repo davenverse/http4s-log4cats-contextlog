@@ -9,7 +9,7 @@ import org.typelevel.log4cats.testing.StructuredTestingLogger
 import org.typelevel.log4cats.extras._
 import org.typelevel.log4cats.testing.StructuredTestingLogger.TRACE
 import org.typelevel.log4cats.testing.StructuredTestingLogger.DEBUG
-import org.typelevel.log4cats.testing.StructuredTestingLogger.INFO
+import org.typelevel.log4cats.testing.StructuredTestingLogger.DEBUG
 import org.typelevel.log4cats.testing.StructuredTestingLogger.WARN
 import org.typelevel.log4cats.testing.StructuredTestingLogger.ERROR
 import org.http4s.client.Client
@@ -44,7 +44,7 @@ class MainSpec extends CatsEffectSuite {
       assertEquals(
         logged,
         Vector(
-          INFO(
+          DEBUG(
             "Http Server - GET",
             None,
             Map(
@@ -84,7 +84,7 @@ class MainSpec extends CatsEffectSuite {
       assertEquals(
         logged,
         Vector(
-          INFO(
+          DEBUG(
             "Http Server - GET",
             None,
             Map(
@@ -132,7 +132,7 @@ class MainSpec extends CatsEffectSuite {
       assertEquals(
         logged,
         Vector(
-          INFO(
+          DEBUG(
             "Req Body - Hello from Request!\nResp Body - Hello from Response!",
             None,
             Map(
@@ -182,7 +182,7 @@ class MainSpec extends CatsEffectSuite {
       assertEquals(
         logged,
         Vector(
-          INFO(
+          DEBUG(
             "HttpClient - GET",
             None,
             Map(
@@ -235,7 +235,7 @@ class MainSpec extends CatsEffectSuite {
       assertEquals(
         logged,
         Vector(
-          INFO(
+          DEBUG(
             "HttpClient - GET",
             None,
             Map(

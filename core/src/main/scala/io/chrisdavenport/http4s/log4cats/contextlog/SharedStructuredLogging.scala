@@ -15,41 +15,21 @@ private[contextlog] object SharedStructuredLogging {
   private[contextlog] def pureRequest[F[_]](req: Request[F]): Request[Pure] = Request(req.method, req.uri, req.httpVersion, req.headers, Stream.empty, req.attributes)
   private[contextlog] def pureResponse[F[_]](resp: Response[F]): Response[Pure] = Response(resp.status, resp.httpVersion, resp.headers, Stream.empty, resp.attributes)
 
-  private[contextlog] def logLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = {
+  private[contextlog] def logLevel(defaultLevel: Option[LogLevel])(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = {
     val _ = prelude
     outcome match {
       case Outcome.Succeeded(Some(resp)) =>
         resp.status.responseClass match {
-          case Status.Informational => LogLevel.Info.some
-          case Status.Successful    => LogLevel.Info.some
-          case Status.Redirection   => LogLevel.Info.some
+          case Status.Informational => defaultLevel
+          case Status.Successful    => defaultLevel
+          case Status.Redirection   => defaultLevel
           case Status.ClientError =>
-            if (resp.status.code === 404) LogLevel.Info.some
+            if (resp.status.code === 404) defaultLevel
             else LogLevel.Warn.some
           case Status.ServerError => LogLevel.Error.some
 
         }
-      case Outcome.Succeeded(None) => LogLevel.Info.some
-      case Outcome.Canceled()      => LogLevel.Warn.some
-      case Outcome.Errored(_)      => LogLevel.Error.some
-    }
-  }
-
-  private[contextlog] def quietLogLevel(prelude: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] = {
-    val _ = prelude
-    outcome match {
-      case Outcome.Succeeded(Some(resp)) =>
-        resp.status.responseClass match {
-          case Status.Informational => None
-          case Status.Successful    => None
-          case Status.Redirection   => None
-          case Status.ClientError =>
-            if (resp.status.code === 404) None
-            else LogLevel.Warn.some
-          case Status.ServerError => LogLevel.Error.some
-
-        }
-      case Outcome.Succeeded(None) => None
+      case Outcome.Succeeded(None) => defaultLevel
       case Outcome.Canceled()      => LogLevel.Warn.some
       case Outcome.Errored(_)      => LogLevel.Error.some
     }
