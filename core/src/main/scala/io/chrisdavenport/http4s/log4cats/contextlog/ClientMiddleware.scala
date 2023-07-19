@@ -44,9 +44,9 @@ object ClientMiddleware {
     def removedContextKeys(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]) = Set.empty[String]
     def additionalContext(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Map[String, String] = Map.empty[String, String]
     def logLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
-      SharedStructuredLogging.logLevel(request, outcome)
-    def quietLogLevel(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
-      SharedStructuredLogging.quietLogLevel(request, outcome)
+      SharedStructuredLogging.logLevel(LogLevel.Debug.some)(request, outcome)
+    def logLevelWithDefault(default: Option[LogLevel])(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]]): Option[LogLevel] =
+      SharedStructuredLogging.logLevel(default)(request, outcome)
     def logMessage(request: Request[Pure], outcome: Outcome[Option, Throwable, Response[Pure]], now: FiniteDuration): String =
       CommonLog.logMessage(ZoneId.systemDefault(), false, true, true)(request, outcome, now)
   }
@@ -135,6 +135,8 @@ object ClientMiddleware {
 
     def withRemovedContextKeys(removedContextKeys:  (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Set[String]) =
       copy(removedContextKeys = removedContextKeys)
+    def withStaticRemovedContextKeys(removedContextKeys: Set[String]) =
+      withRemovedContextKeys((_,_) => removedContextKeys)
 
     def withWillLog(willLog: Request[Pure] => F[Boolean]) =
       copy(willLog = willLog)
@@ -150,19 +152,31 @@ object ClientMiddleware {
       copy(requestObserveBody = boolean)
     def withObserveResponseBody(boolean: Boolean) =
       copy(responseObserveBody = boolean)
+    def withObserveSharedBody(boolean: Boolean) =
+      withObserveRequestBody(boolean)
+        .withObserveResponseBody((boolean))
 
     def withRequestBodyEncoder(encoder: Request[Pure] => Option[String]) =
       copy(requestBodyEncoder = encoder)
     def withResponseBodyEncoder(encoder: Response[Pure] => Option[String]) = 
       copy(responseBodyEncoder = encoder)
+    def withSharedBodyEncoder(encoder: Message[Pure] => Option[String]) =
+      withRequestBodyEncoder(encoder)
+        .withResponseBodyEncoder(encoder)
 
     def withRequestBodyMaxSize(l: Long) =
       copy(requestBodyMaxSize = l)
     def withResponseBodyMaxSize(l: Long) =
       copy(responseBodyMaxSize = l)
+    def withSharedBodyMaxSize(l: Long) =
+      withRequestBodyMaxSize(l)
+        .withResponseBodyMaxSize(l)
 
     def withLogLevel(logLevel: (Request[Pure], Outcome[Option, Throwable, Response[Pure]]) => Option[LogLevel]) =
       copy(logLevel = logLevel)
+    def withStaticLogLevel(logLevel: Option[LogLevel]) =
+      withLogLevel((_,_) => logLevel)
+
     def withLogMessage(logMessage: (Request[Pure], Outcome[Option, Throwable, Response[Pure]], FiniteDuration) => String) =
       copy(logMessage = logMessage)
 
@@ -170,6 +184,9 @@ object ClientMiddleware {
       copy(reqHeaders = reqHeaders)
     def withAllowedResponseHeaders(respHeaders: Set[CIString]) =
       copy(respHeaders = respHeaders)
+    def withAllowedSharedHeaders(headers: Set[CIString]) =
+      withAllowedRequestHeaders(headers)
+        .withAllowedResponseHeaders(headers)
 
     def client(client: Client[F]): Client[F] =
       if (requestObserveBody || responseObserveBody) clientWithBody[F](logger, willLog, routeClassifier, reqHeaders,  requestIncludeUrl, requestObserveBody, requestBodyEncoder, requestBodyMaxSize, respHeaders, responseObserveBody, responseBodyEncoder, responseBodyMaxSize, removedContextKeys, additionalContext, logLevel, logMessage)(client)
