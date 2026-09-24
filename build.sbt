@@ -9,9 +9,6 @@ ThisBuild / developers := List(
 ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / tlCiReleaseBranches := Seq("main")
-ThisBuild / tlSonatypeUseLegacyHost := true
-
-
 val Scala3 = "3.3.0"
 
 ThisBuild / crossScalaVersions := Seq("2.13.11", Scala3)
