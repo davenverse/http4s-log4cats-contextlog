@@ -9,21 +9,21 @@ ThisBuild / developers := List(
 ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / tlCiReleaseBranches := Seq()
-val Scala3 = "3.3.0"
+val Scala3 = "3.3.8"
 
 ThisBuild / crossScalaVersions := Seq("2.13.18", Scala3)
 ThisBuild / scalaVersion := Scala3
 
 ThisBuild / testFrameworks += new TestFramework("munit.Framework")
 
-val catsV = "2.9.0"
-val catsEffectV = "3.5.0"
-val fs2V = "3.7.0"
-val http4sV = "0.23.18"
-val log4catsV = "2.6.0"
+val catsV = "2.13.0"
+val catsEffectV = "3.7.1"
+val fs2V = "3.14.0"
+val http4sV = "0.23.37"
+val log4catsV = "2.8.0"
 
 
-val munitCatsEffectV = "2.0.0-M3"
+val munitCatsEffectV = "2.2.1"
 
 
 // Projects
